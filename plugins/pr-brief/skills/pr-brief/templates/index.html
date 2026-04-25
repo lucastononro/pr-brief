@@ -129,6 +129,30 @@
     background: var(--bg);
   }
   .diff-wrap[data-collapsed="1"] .diff-body { display: none; }
+  .diff-wrap[data-collapsed="1"] .file-brief { display: none; }
+  .file-brief {
+    padding: 10px 14px;
+    background: linear-gradient(180deg, var(--bg-raised), var(--bg));
+    border-bottom: 1px solid var(--border);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .file-brief .file-tldr {
+    font-size: 13px; color: var(--text); line-height: 1.4;
+    font-weight: 500;
+  }
+  .file-brief .file-desc {
+    margin-top: 6px;
+    font-size: 12px; color: var(--text-dim); line-height: 1.5;
+  }
+  .file-brief .file-desc p { margin: 0 0 6px 0; }
+  .file-brief .file-desc p:last-child { margin-bottom: 0; }
+  .file-brief .file-desc ul, .file-brief .file-desc ol { margin: 4px 0 4px 18px; padding: 0; }
+  .file-brief .file-desc code {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11.5px; padding: 1px 4px;
+    background: rgba(110,118,129,0.2); border-radius: 3px;
+  }
+  .file-brief .file-desc strong { color: var(--text); }
   .file-header {
     display: flex; align-items: center; gap: 8px;
     padding: 7px 12px; background: var(--bg-raised);
@@ -609,6 +633,11 @@ function renderFileBlock(file) {
           Viewed
         </label>
       </div>
+      ${(file.tldr || file.description) ? `
+      <div class="file-brief">
+        ${file.tldr ? `<div class="file-tldr">${escape(file.tldr)}</div>` : ""}
+        ${file.description ? `<div class="file-desc">${renderMarkdown(file.description)}</div>` : ""}
+      </div>` : ""}
       <div class="diff-body">
         <div class="diff-content">${tableHtml}</div>
         <div class="explain-track">${pillsHtml}</div>
@@ -1151,7 +1180,7 @@ document.getElementById("publish-briefs-btn").onclick = async () => {
     for (const f of feat.files) {
       const body =
         `**feature:** ${name}\n` +
-        `**TL;DR:** ${feat.tldr || ""}\n\n` +
+        `**TL;DR:** ${f.tldr || feat.tldr || ""}\n\n` +
         `**Full description:** ${f.description || feat.full_description || ""}`;
       briefs.push({ path: f.path, body });
     }

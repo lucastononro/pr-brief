@@ -101,7 +101,13 @@ Instruct the agent to:
 
 4. Emit `edges` — pairs `["fromFeature", "toFeature"]` for "understanding A helps read B". Examples: `["migrations","ai-enabled-flag"]`, `["ownership-guards","controllers-using-ownership"]`. ~5-12 edges total.
 
-5. Per-file: add optional `description` (1 sentence, plain text) only when meaningfully different from the feature-level description.
+5. **Per-file briefs (required for non-trivial files).** For every file, produce:
+   - `tldr` — one-line plain-text what + why for *this file specifically* (≤120 chars; **no markdown**). Distinct from the feature-level `tldr`: that one summarizes the whole feature; this one summarizes the file's role within it. Example feature tldr: "Schema updates for group conversations". Example file tldr for `V0079_*.py`: "Adds `is_group` and `group_jid` columns to `conversation_assignments`".
+   - `description` — **markdown**, 1-3 short sentences or a small bullet list. Mini-PR-description for the file: what changed + why this file in particular needs to change. Use `` `inline code` `` for symbols, `**bold**` for the key noun. No headings. The UI renders this through `marked` and shows it in a header card directly above each file's diff (so a reviewer sees the file's purpose before scanning the diff itself).
+
+   Skip both fields (or set to empty strings) only for: lockfiles, pure renames with no content changes, deleted-file shells, or auto-generated artifacts. For these, the feature-level brief is sufficient.
+
+   Per-file `tldr` + `description` are distinct from explain pills: the brief sits at the *top* of the file as a header; pills annotate *specific line ranges* inline. The brief answers "why am I about to look at this file?" — pills answer "why is this block written this way?".
 
 6. **Explain pills — the narrative layer.** This is the most important output of the agent after the feature grouping. Explain pills are AI-authored callouts that **tell the story of the PR**. They render as floating purple ✨ boxes next to the diff, and a reviewer reading them in `sequence` order should leave understanding *the whole change*, not just isolated snippets.
 
@@ -189,7 +195,8 @@ Instruct the agent to:
       "files": [
         {
           "path": "path/to/file.ext",
-          "description": "optional plain-text note",
+          "tldr": "Plain-text one-liner about THIS file",
+          "description": "**Markdown** mini-brief. 1-3 short sentences or a small bullet list — what changed in this file and why it had to.",
           "explanations": [
             {
               "title": "Short title (plain text, 4-8 words)",
@@ -244,6 +251,7 @@ Binary / rename-only files: `lines: []`.
 - For `side: "LEFT"`: find the line where `(type == "context" or type == "del") and old_line == target_line`.
 - If a target line isn't found in the diff (e.g. agent picked an out-of-diff line), drop that explanation with a warning.
 - Pass the augmented `explanations` array through to the file entry in data.json.
+- Pass the file-level `tldr` and `description` (from `features.json`) straight through to the file entry in data.json — the frontend renders them as a header card above each file's diff.
 
 **Final `data.json` shape:**
 
@@ -270,7 +278,8 @@ Binary / rename-only files: `lines: []`.
       "files": [
         {
           "path": "backend-python/src/migrations/versions/V0079_....py",
-          "description": "",
+          "tldr": "Adds `is_group` and `group_jid` columns to `conversation_assignments`.",
+          "description": "Schema migration that introduces the two columns the rest of `group-conversations` depends on. Idempotent via `migration_tracking` so a Cloud Run cold start can replay it safely.",
           "additions": 45,
           "deletions": 2,
           "lines": [ ... ],
