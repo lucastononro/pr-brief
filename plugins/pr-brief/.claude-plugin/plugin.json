@@ -1,0 +1,20 @@
+{
+  "name": "pr-brief",
+  "description": "Interactive browser-based PR review with AI-authored narrative explain pills, GitHub-style stacked diffs, and realtime inline comment posting via gh.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Lucas Tonon",
+    "email": "ltononro@gmail.com"
+  },
+  "homepage": "https://github.com/lucastononro/pr-brief",
+  "repository": "https://github.com/lucastononro/pr-brief",
+  "license": "MIT",
+  "keywords": [
+    "pull-request",
+    "code-review",
+    "github",
+    "diff",
+    "narrative",
+    "ai-review"
+  ]
+}

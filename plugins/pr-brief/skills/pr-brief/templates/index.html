@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PR Review</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --bg-raised: #161b22;
+    --bg-hover: #1f242c;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --add-bg: #0f2b1d;
+    --add-line: #1b4721;
+    --del-bg: #2a0f13;
+    --del-line: #5a1e1e;
+    --warn: #d29922;
+    --danger: #f85149;
+    --ok: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 12px 20px; background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header .title { font-size: 15px; font-weight: 600; }
+  header .meta { color: var(--text-dim); }
+  header .meta .add { color: var(--ok); }
+  header .meta .del { color: var(--danger); }
+  header .auth-banner { margin-left: auto; padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+  header .auth-banner.ok { background: rgba(63,185,80,0.15); color: var(--ok); }
+  header .auth-banner.bad { background: rgba(248,81,73,0.15); color: var(--danger); }
+  main { display: grid; grid-template-columns: 360px 1fr; height: calc(100vh - 49px); overflow: hidden; }
+  aside {
+    border-right: 1px solid var(--border);
+    background: var(--bg-raised);
+    display: flex; flex-direction: column;
+    overflow: hidden;  /* feature-list and pending-box scroll inside */
+  }
+  aside h3 { margin: 16px 16px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); flex-shrink: 0; }
+  .feature-list { padding: 0 8px 8px; flex: 1; overflow-y: auto; min-height: 0; }
+  .feature {
+    padding: 10px 12px; margin: 4px 0; border-radius: 6px;
+    cursor: pointer; border: 1px solid transparent;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .feature:hover { background: var(--bg-hover); }
+  .feature.active { background: var(--bg-hover); border-color: var(--accent); }
+  .feature .num {
+    flex-shrink: 0;
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 11px; background: var(--border);
+  }
+  .feature .num.high { background: rgba(248,81,73,0.3); color: #ff7b72; }
+  .feature .num.medium { background: rgba(210,153,34,0.3); color: #f0ca55; }
+  .feature .num.low { background: rgba(139,148,158,0.3); color: var(--text-dim); }
+  .feature .name { font-weight: 600; }
+  .feature .tldr { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+  .feature .count { color: var(--text-dim); font-size: 11px; margin-top: 4px; }
+  .pending-box {
+    flex-shrink: 0;
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    max-height: 40%;
+    overflow-y: auto;
+    background: var(--bg);
+  }
+  .pending-item {
+    font-size: 11px; padding: 6px 8px; margin: 4px 0;
+    background: var(--bg-raised); border-radius: 4px;
+    border-left: 2px solid var(--accent);
+  }
+  .pending-item .path { color: var(--text-dim); font-family: ui-monospace, SFMono-Regular, monospace; }
+  .pending-item .body { margin-top: 3px; }
+  .pending-item .remove { float: right; cursor: pointer; color: var(--text-dim); }
+  .pending-item .remove:hover { color: var(--danger); }
+  .pending-actions { display: flex; gap: 6px; margin-top: 10px; }
+  button {
+    background: var(--bg-raised); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { background: var(--bg-hover); }
+  button.primary { background: #238636; border-color: #238636; color: white; }
+  button.primary:hover { background: #2ea043; }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  section.viewer { overflow-y: auto; padding: 0; }
+  .feature-header {
+    padding: 16px 24px; background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .feature-header .name { font-size: 18px; font-weight: 600; }
+  .feature-header .tldr { color: var(--text-dim); margin-top: 6px; }
+  .feature-header .desc { margin-top: 10px; font-size: 13px; line-height: 1.6; max-width: 80ch; }
+  .feature-header .desc p { margin: 6px 0; }
+  .feature-header .desc p:first-child { margin-top: 0; }
+  .feature-header .desc p:last-child { margin-bottom: 0; }
+  .feature-header .desc ul, .feature-header .desc ol { margin: 6px 0; padding-left: 22px; }
+  .feature-header .desc li { margin: 3px 0; }
+  .feature-header .desc strong { color: var(--text); font-weight: 600; }
+  .feature-header .desc em { color: var(--text); }
+  .feature-header .desc code {
+    background: var(--bg); padding: 1px 6px; border-radius: 3px;
+    font: 12px ui-monospace, SFMono-Regular, monospace; color: #ff7b72;
+  }
+  .feature-header .desc a { color: var(--accent); }
+  .feature-header .desc h1, .feature-header .desc h2, .feature-header .desc h3 {
+    font-size: 14px; margin: 8px 0 4px; color: var(--text);
+  }
+  .feature-header .why { margin-top: 8px; font-size: 12px; font-style: italic; color: var(--warn); }
+  .feature-header .file-summary { margin-top: 10px; font-size: 12px; color: var(--text-dim); }
+  .diff-wrap {
+    margin: 16px 24px;
+    border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden;
+    background: var(--bg);
+  }
+  .diff-wrap[data-collapsed="1"] .diff-body { display: none; }
+  .file-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 12px; background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px;
+    position: sticky; top: 0; z-index: 4;
+  }
+  .diff-wrap[data-collapsed="1"] .file-header { border-bottom: none; }
+  .file-collapse-toggle {
+    width: 18px; height: 18px; padding: 0;
+    background: transparent; border: none;
+    color: var(--text-dim); font-size: 10px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .file-collapse-toggle:hover { color: var(--text); }
+  .diff-wrap[data-collapsed="1"] .file-collapse-toggle { transform: rotate(-90deg); }
+  .file-header .file-path { font-weight: 500; color: var(--text); }
+  .file-header .file-stats { display: flex; gap: 6px; font-size: 11px; }
+  .file-header .file-stats .add { color: var(--ok); }
+  .file-header .file-stats .del { color: var(--danger); }
+  .file-header .has-comments-badge { font-size: 11px; color: var(--accent); }
+  .file-header .spacer { flex: 1; }
+  .file-header .viewed-label {
+    display: flex; align-items: center; gap: 4px;
+    padding: 3px 8px; border: 1px solid var(--border);
+    border-radius: 4px; font-family: -apple-system, sans-serif; font-size: 11px;
+    color: var(--text-dim); cursor: pointer; user-select: none;
+  }
+  .file-header .viewed-label:hover { border-color: var(--text-dim); color: var(--text); }
+  .file-header .viewed-label input { margin: 0; }
+  .diff-wrap.file-viewed { opacity: 0.65; }
+  .diff-wrap.file-viewed:hover { opacity: 1; }
+  .diff-wrap.file-viewed .viewed-label { border-color: var(--ok); color: var(--ok); }
+
+  /* Explain-pill side track (AI annotations) */
+  .diff-body { display: flex; align-items: flex-start; }
+  .diff-content { flex: 1; min-width: 0; }
+  .explain-track {
+    width: 400px; flex-shrink: 0; position: relative;
+    border-left: 1px solid var(--border); background: rgba(187,128,255,0.02);
+    min-height: 100%;
+  }
+  .diff-wrap[data-no-explanations="1"] .explain-track { display: none; }
+  .explain-pill {
+    position: absolute; right: 10px; left: 10px;
+    background: var(--bg-raised);
+    border: 1px solid rgba(187,128,255,0.45);
+    border-left: 3px solid #bb80ff;
+    border-radius: 6px;
+    padding: 7px 10px; font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    transition: top 0.18s ease;
+  }
+  .explain-pill .pill-head {
+    display: flex; gap: 6px; align-items: center;
+    font-weight: 600; user-select: none;
+  }
+  .explain-pill .pill-head .icon { color: #bb80ff; flex-shrink: 0; }
+  .explain-pill .pill-head .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .explain-pill .pill-head .toggle {
+    background: transparent; border: none; color: var(--text-dim);
+    padding: 2px 6px; cursor: pointer; font-size: 11px; border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .explain-pill .pill-head .toggle:hover { color: var(--text); background: var(--bg-hover); }
+  .explain-pill .pill-range {
+    font: 10px ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-dim); margin-top: 2px;
+  }
+  .explain-pill .pill-body {
+    margin-top: 8px; line-height: 1.5; font-weight: normal;
+    overflow: auto; resize: vertical;
+    max-height: 60vh;
+  }
+  .explain-pill .pill-body p { margin: 4px 0; }
+  .explain-pill .pill-body p:first-child { margin-top: 0; }
+  .explain-pill .pill-body p:last-child { margin-bottom: 0; }
+  .explain-pill .pill-body ul, .explain-pill .pill-body ol { margin: 4px 0; padding-left: 18px; }
+  .explain-pill .pill-body code {
+    background: var(--bg); padding: 1px 5px; border-radius: 3px;
+    font: 11px ui-monospace, SFMono-Regular, monospace; color: #ff7b72;
+  }
+  .explain-pill .pill-body pre {
+    background: var(--bg); padding: 8px; border-radius: 4px;
+    overflow-x: auto; font-size: 11px;
+  }
+  .explain-pill .pill-body strong { color: var(--text); }
+  .explain-pill.collapsed .pill-body,
+  .explain-pill.collapsed .pill-range { display: none; }
+  /* Highlight the rows inside an explanation's range */
+  .diff-table tr.explain-range > .gutter {
+    box-shadow: inset 3px 0 0 #bb80ff;
+  }
+  .diff-table { width: 100%; border-collapse: collapse; font: 12px/1.4 ui-monospace, SFMono-Regular, monospace; }
+  .diff-table td { padding: 0; vertical-align: top; }
+  .diff-table .gutter {
+    width: 50px; min-width: 50px; padding: 0 8px; text-align: right;
+    color: var(--text-dim); user-select: none;
+    background: var(--bg); border-right: 1px solid var(--border);
+    position: relative;
+  }
+  .diff-table .line-content { padding: 0 10px; white-space: pre; }
+  /* Override highlight.js github-dark: it sets its own bg/padding; we want it transparent inside diff rows */
+  .diff-table .line-content .hljs,
+  .diff-table .line-content .hljs * { background: transparent !important; padding: 0 !important; }
+  .diff-table .diff-prefix { color: var(--text-dim); }
+  .diff-table tr.add .diff-prefix { color: #3fb950; }
+  .diff-table tr.del .diff-prefix { color: #f85149; }
+  .diff-table tr.add { background: var(--add-bg); }
+  .diff-table tr.add .gutter { background: var(--add-line); color: #4ac26b; }
+  .diff-table tr.del { background: var(--del-bg); }
+  .diff-table tr.del .gutter { background: var(--del-line); color: #ff7b72; }
+  .diff-table tr.hunk { background: #1c2128; color: var(--text-dim); }
+  .diff-table tr.hunk td { padding: 4px 10px; font-style: italic; }
+
+  /* GitHub-style "+" button in gutter on hover */
+  .add-comment-btn {
+    position: absolute; left: -4px; top: 50%; transform: translateY(-50%);
+    width: 20px; height: 20px; border-radius: 4px;
+    background: #0969da; color: white; border: none; padding: 0;
+    font: 600 14px/1 sans-serif; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    z-index: 2; box-shadow: 0 0 0 2px var(--bg-raised);
+  }
+  .add-comment-btn:hover { background: #218bff; }
+  .diff-table tr.comment-target:hover .add-comment-btn,
+  .add-comment-btn:focus { display: flex; }
+
+  /* Inline comment editor row */
+  tr.comment-editor-row > td {
+    padding: 10px 12px 10px 60px; background: #0d1117;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .comment-editor {
+    max-width: 900px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .comment-editor .editor-head {
+    padding: 6px 12px; font-size: 11px; color: var(--text-dim);
+    background: #0d1117; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  }
+  .comment-editor .editor-head .editor-range-label {
+    padding: 1px 7px; border-radius: 10px;
+    background: rgba(88,166,255,0.12); color: var(--accent);
+    border: 1px solid rgba(88,166,255,0.3);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+  .comment-editor .editor-head .range-select {
+    margin-left: auto;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 6px; font: 11px/1.4 -apple-system, sans-serif;
+  }
+  .comment-editor .editor-head .range-select:hover { border-color: var(--text-dim); }
+  .comment-editor textarea {
+    width: 100%; min-height: 90px; padding: 10px 12px;
+    background: var(--bg); color: var(--text);
+    border: none; resize: vertical; outline: none;
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .comment-editor textarea:focus { background: #0a0d12; }
+  .comment-editor .actions {
+    display: flex; justify-content: flex-end; gap: 8px;
+    padding: 8px 12px; background: #0d1117; border-top: 1px solid var(--border);
+  }
+
+  /* Saved inline comment thread row */
+  tr.comment-thread-row > td {
+    padding: 10px 12px 10px 60px; background: #0d1117;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .comment-thread {
+    max-width: 900px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .comment-thread .thread-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: #1c2128;
+    border-bottom: 1px solid var(--border); font-size: 12px;
+  }
+  .comment-thread .thread-head .author { font-weight: 600; }
+  .comment-thread .thread-head .pending-badge {
+    padding: 1px 7px; border-radius: 10px; font-size: 10px;
+    background: rgba(210,153,34,0.18); color: var(--warn);
+    border: 1px solid rgba(210,153,34,0.35);
+  }
+  .comment-thread .thread-head .posted-badge {
+    padding: 1px 7px; border-radius: 10px; font-size: 10px;
+    background: rgba(63,185,80,0.15); color: var(--ok);
+    border: 1px solid rgba(63,185,80,0.35);
+    text-decoration: none;
+  }
+  .comment-thread .thread-head .posted-badge:hover { text-decoration: underline; }
+  .comment-thread .thread-head .range-label,
+  .comment-editor .editor-head .range-inline {
+    padding: 1px 7px; border-radius: 10px; font-size: 10px;
+    background: rgba(88,166,255,0.12); color: var(--accent);
+    border: 1px solid rgba(88,166,255,0.3);
+    font-family: ui-monospace, SFMono-Regular, monospace;
+  }
+  .comment-thread .thread-head .spacer { flex: 1; }
+  /* Range anchor highlight — shows which line is the pending "start" for a shift-click range */
+  .diff-table tr.range-anchor .gutter {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  /* Live click-and-drag range highlight (while dragging from gutter) */
+  .diff-table tr.range-selecting > td {
+    background-color: rgba(88, 166, 255, 0.18) !important;
+  }
+  .diff-table tr.range-selecting .gutter {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  /* Disable text selection in the diff while dragging — looks cleaner */
+  body.dragging-range, body.dragging-range * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    cursor: ns-resize !important;
+  }
+  .comment-thread .thread-head button {
+    padding: 2px 8px; font-size: 11px;
+    border: 1px solid transparent; background: transparent; color: var(--text-dim);
+    border-radius: 4px;
+  }
+  .comment-thread .thread-head button:hover {
+    color: var(--text); border-color: var(--border); background: var(--bg-hover);
+  }
+  .comment-thread .thread-body {
+    padding: 10px 14px; font-size: 13px; line-height: 1.5;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    padding: 12px 16px; background: var(--bg-raised);
+    border: 1px solid var(--border); border-radius: 6px;
+    max-width: 400px; z-index: 200;
+  }
+  .toast.ok { border-color: var(--ok); }
+  .toast.bad { border-color: var(--danger); }
+  .empty { padding: 40px; text-align: center; color: var(--text-dim); }
+  .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; background: var(--border); margin-left: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="title" id="pr-title">Loading…</div>
+    <div class="meta" id="pr-meta"></div>
+  </div>
+  <div class="auth-banner" id="auth-banner"></div>
+</header>
+
+<main>
+  <aside>
+    <h3>Review sequence</h3>
+    <div class="feature-list" id="feature-list"></div>
+
+    <div class="pending-box">
+      <h3>Pending comments (<span id="pending-count">0</span>)</h3>
+      <div id="pending-list"></div>
+      <div class="pending-actions">
+        <button id="publish-briefs-btn" title="Post the feature briefs as inline comments on GitHub">Publish briefs</button>
+        <button id="submit-btn" class="primary">Submit review</button>
+        <button id="clear-btn" class="danger">Clear</button>
+      </div>
+    </div>
+  </aside>
+
+  <section class="viewer" id="viewer">
+    <div class="empty">Click a feature on the left to start reviewing.</div>
+  </section>
+</main>
+
+<div id="toast-root"></div>
+
+<script>
+let DATA = null;
+let ACTIVE_FEATURE = null;
+let CONTEXT = null;
+let PENDING = [];
+let VIEWED = new Set();  // paths marked "Viewed"
+let COMMENT_ANCHOR = null;  // {path, position, line, side, type} — last-clicked "+" for shift-click range
+let DRAG_STATE = null;      // active click-and-drag from gutter
+
+const STORAGE_KEY = () => `pr-brief-pending-${CONTEXT?.repo}-${CONTEXT?.pr}`;
+const VIEWED_KEY = () => `pr-brief-viewed-${CONTEXT?.repo}-${CONTEXT?.pr}`;
+
+function loadViewed() {
+  try { VIEWED = new Set(JSON.parse(localStorage.getItem(VIEWED_KEY()) || "[]")); } catch { VIEWED = new Set(); }
+}
+function saveViewed() {
+  localStorage.setItem(VIEWED_KEY(), JSON.stringify([...VIEWED]));
+}
+
+function savePending() {
+  localStorage.setItem(STORAGE_KEY(), JSON.stringify(PENDING));
+  renderPending();
+}
+function loadPending() {
+  try { PENDING = JSON.parse(localStorage.getItem(STORAGE_KEY()) || "[]"); } catch { PENDING = []; }
+  // Migrate any legacy {path, position, body} entries to {path, line, side, end_position, body}
+  PENDING = PENDING.map(migratePending).filter(Boolean);
+}
+
+function sideForType(type) { return type === "del" ? "LEFT" : "RIGHT"; }
+function lineNumForLine(line) {
+  return line.type === "del" ? line.old_line : line.new_line;
+}
+
+function findFileByPath(path) {
+  for (const feat of Object.values(DATA.features)) {
+    const f = feat.files.find(x => x.path === path);
+    if (f) return f;
+  }
+  return null;
+}
+function findLineByPosition(file, position) {
+  return file?.lines?.find(l => l.position === position) || null;
+}
+
+function migratePending(c) {
+  if (!c) return null;
+  if (c.line != null && c.side) return c; // already new shape
+  if (c.position != null) {
+    const file = findFileByPath(c.path);
+    const lineObj = findLineByPosition(file, c.position);
+    if (!lineObj || lineObj.type === "hunk") return null;
+    const line = lineNumForLine(lineObj);
+    if (!line) return null;
+    return { path: c.path, body: c.body, line, side: sideForType(lineObj.type), end_position: c.position };
+  }
+  return null;
+}
+
+function findPendingForEndPosition(path, endPosition) {
+  return PENDING.find(c => c.path === path && c.end_position === endPosition);
+}
+
+function toast(msg, kind = "ok", ms = 4000) {
+  const root = document.getElementById("toast-root");
+  const el = document.createElement("div");
+  el.className = `toast ${kind}`;
+  el.innerHTML = msg;
+  root.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+async function init() {
+  // Load context + data in parallel
+  const [ctx, data] = await Promise.all([
+    fetch("/api/context").then(r => r.json()),
+    fetch("/data.json").then(r => r.json()),
+  ]);
+  CONTEXT = ctx;
+  DATA = data;
+  loadPending();
+  loadViewed();
+
+  renderHeader();
+  renderFeatureList();
+  renderPending();
+  setupViewerDelegation();
+  checkAuth();
+}
+
+function renderHeader() {
+  const pr = DATA.pr;
+  document.getElementById("pr-title").innerHTML =
+    `<a href="${pr.url}" target="_blank">#${pr.number}</a> · ${escape(pr.title)}`;
+  document.getElementById("pr-meta").innerHTML =
+    `${DATA.pr.author || ""} &middot; ${DATA.sequence.length} features &middot; ` +
+    Object.values(DATA.features).reduce((n, f) => n + f.files.length, 0) + ` files &middot; ` +
+    `<span class="add">+${pr.additions || "?"}</span> <span class="del">-${pr.deletions || "?"}</span>`;
+}
+
+async function checkAuth() {
+  const banner = document.getElementById("auth-banner");
+  try {
+    const res = await fetch("/api/auth-status", { method: "POST", body: "{}" });
+    const data = await res.json();
+    if (data.ok) {
+      banner.className = "auth-banner ok";
+      banner.textContent = "gh authenticated";
+    } else {
+      banner.className = "auth-banner bad";
+      banner.textContent = "gh not authenticated — run `gh auth login`";
+    }
+  } catch {
+    banner.className = "auth-banner bad";
+    banner.textContent = "auth check failed";
+  }
+}
+
+function renderFeatureList() {
+  const container = document.getElementById("feature-list");
+  container.innerHTML = "";
+  DATA.sequence.forEach((name, i) => {
+    const feat = DATA.features[name];
+    if (!feat) return;
+    const el = document.createElement("div");
+    el.className = "feature";
+    if (ACTIVE_FEATURE === name) el.classList.add("active");
+    el.innerHTML = `
+      <div class="num ${feat.blast_radius || "low"}">${i + 1}</div>
+      <div style="flex:1;min-width:0;">
+        <div class="name">${escape(name)}</div>
+        <div class="tldr">${escape(feat.tldr || "")}</div>
+        <div class="count">${feat.files.length} file${feat.files.length === 1 ? "" : "s"}</div>
+      </div>
+    `;
+    el.onclick = () => openFeature(name);
+    container.appendChild(el);
+  });
+}
+
+function openFeature(name) {
+  ACTIVE_FEATURE = name;
+  renderFeatureList();
+  renderViewer();
+}
+
+function renderViewer() {
+  const viewer = document.getElementById("viewer");
+  if (!ACTIVE_FEATURE) {
+    viewer.innerHTML = `<div class="empty">Click a feature on the left to start reviewing.</div>`;
+    return;
+  }
+  const feat = DATA.features[ACTIVE_FEATURE];
+
+  viewer.innerHTML = `
+    <div class="feature-header">
+      <div class="name">${escape(ACTIVE_FEATURE)}
+        <span class="badge">${feat.blast_radius || "low"} blast</span>
+      </div>
+      <div class="tldr">${escape(feat.tldr || "")}</div>
+      ${feat.full_description ? `<div class="desc">${renderMarkdown(feat.full_description)}</div>` : ""}
+      ${feat.why_first ? `<div class="why">${escape(feat.why_first)}</div>` : ""}
+      <div class="file-summary">${feat.files.length} file${feat.files.length === 1 ? "" : "s"} · scroll to review</div>
+    </div>
+    <div id="files-container">
+      ${feat.files.map(f => renderFileBlock(f)).join("")}
+    </div>
+  `;
+  viewer.scrollTop = 0;
+  // Layout explain pills after the DOM has its real heights
+  requestAnimationFrame(() => layoutAllExplainPills());
+}
+
+function renderFileBlock(file) {
+  const isViewed = VIEWED.has(file.path);
+  const hasComments = PENDING.some(c => c.path === file.path);
+  const explanations = file.explanations || [];
+  const noExplanations = explanations.length === 0;
+  const tableHtml = (!file.lines || !file.lines.length)
+    ? `<div class="empty">(binary or rename — not displayable)</div>`
+    : renderDiffTable(file, explanations);
+  const pillsHtml = explanations.map((e, i) => renderExplainPill(file.path, e, i)).join("");
+
+  return `
+    <div class="diff-wrap${isViewed ? " file-viewed" : ""}" data-file-path="${escape(file.path)}"${isViewed ? ' data-collapsed="1"' : ""}${noExplanations ? ' data-no-explanations="1"' : ""}>
+      <div class="file-header">
+        <button class="file-collapse-toggle" title="Collapse/expand">▼</button>
+        <span class="file-path">${escape(file.path)}</span>
+        <span class="file-stats">
+          <span class="add">+${file.additions}</span>
+          <span class="del">-${file.deletions}</span>
+        </span>
+        ${hasComments ? `<span class="has-comments-badge" title="Has pending comments">💬</span>` : ""}
+        ${explanations.length ? `<span class="has-comments-badge" title="${explanations.length} AI explanation(s)" style="color:#bb80ff">✨ ${explanations.length}</span>` : ""}
+        <span class="spacer"></span>
+        <label class="viewed-label">
+          <input type="checkbox" class="file-viewed-checkbox" ${isViewed ? "checked" : ""}>
+          Viewed
+        </label>
+      </div>
+      <div class="diff-body">
+        <div class="diff-content">${tableHtml}</div>
+        <div class="explain-track">${pillsHtml}</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderExplainPill(path, exp, idx) {
+  const range = exp.start_line && exp.end_line && exp.start_line !== exp.end_line
+    ? `Lines ${exp.start_line}–${exp.end_line} (${(exp.side || "right").toLowerCase()})`
+    : `Line ${exp.end_line || exp.start_line || "?"} (${(exp.side || "right").toLowerCase()})`;
+  const title = exp.title || "AI explanation";
+  return `
+    <div class="explain-pill" data-start-position="${exp.start_position || exp.end_position || ""}" data-end-position="${exp.end_position || ""}" data-pill-idx="${idx}">
+      <div class="pill-head">
+        <span class="icon">✨</span>
+        <span class="title">${escape(title)}</span>
+        <button class="toggle" title="Collapse/expand">−</button>
+      </div>
+      <div class="pill-range">${range}</div>
+      <div class="pill-body">${renderMarkdown(exp.body || "")}</div>
+    </div>
+  `;
+}
+
+function renderDiffTable(file, explanations = []) {
+  const lang = detectLang(file.path);
+  const rows = [];
+  // Build a set of positions that fall inside any explanation's range
+  const explainedPositions = new Set();
+  for (const e of explanations) {
+    const lo = Math.min(e.start_position || 0, e.end_position || 0);
+    const hi = Math.max(e.start_position || 0, e.end_position || 0);
+    if (lo > 0 && hi > 0) {
+      for (let p = lo; p <= hi; p++) explainedPositions.add(p);
+    }
+  }
+  for (const line of file.lines) {
+    const classes = [line.type];
+    if (line.type !== "hunk") classes.push("comment-target");
+    if (explainedPositions.has(line.position)) classes.push("explain-range");
+    let gutter = "";
+    if (line.type === "add" || line.type === "del" || line.type === "context") {
+      gutter = lineNumForLine(line) || "";
+    }
+    const side = line.type === "hunk" ? "" : sideForType(line.type);
+    const lineNum = line.type === "hunk" ? "" : (lineNumForLine(line) || "");
+    const plusBtn = line.type !== "hunk"
+      ? `<button class="add-comment-btn" title="Add line comment (shift-click to extend to range)" data-position="${line.position}">+</button>`
+      : "";
+    const content = renderLineContent(line, lang);
+    rows.push(`
+      <tr class="${classes.join(" ")}" data-position="${line.position}" data-line="${lineNum}" data-side="${side}" data-type="${line.type}">
+        <td class="gutter">${plusBtn}${gutter}</td>
+        <td class="line-content">${content}</td>
+      </tr>
+    `);
+    const comment = findPendingForEndPosition(file.path, line.position);
+    if (comment) {
+      rows.push(renderThreadRow(file.path, comment));
+    }
+  }
+  return `<table class="diff-table"><tbody>${rows.join("")}</tbody></table>`;
+}
+
+// Position the absolutely-placed pills inside their .explain-track so each one
+// sits at the vertical position of its START row (the first line of the range),
+// stacked to avoid overlap. Also grows the track tall enough to contain the
+// last pill so pills near the end of the file aren't clipped.
+function layoutExplainPills(wrap) {
+  if (!wrap) return;
+  const track = wrap.querySelector(".explain-track");
+  if (!track) return;
+  // Reset min-height so we can re-measure cleanly across layout passes
+  track.style.minHeight = "";
+  const pills = Array.from(track.querySelectorAll(".explain-pill"))
+    .sort((a, b) => parseInt(a.dataset.startPosition || 0, 10) - parseInt(b.dataset.startPosition || 0, 10));
+  const trackRect = track.getBoundingClientRect();
+  let lastBottom = 0;
+  for (const pill of pills) {
+    const startPos = pill.dataset.startPosition;
+    if (!startPos) continue;
+    const row = wrap.querySelector(`tr[data-position="${startPos}"]`);
+    if (!row) continue;
+    const rowRect = row.getBoundingClientRect();
+    let top = rowRect.top - trackRect.top;
+    if (top < lastBottom + 8) top = lastBottom + 8;  // stack to avoid overlap
+    pill.style.top = top + "px";
+    lastBottom = top + pill.offsetHeight;
+  }
+  // Ensure the track is tall enough to contain every pill — this also forces the
+  // flex parent (.diff-body) to grow, so pills near EOF aren't visually clipped.
+  if (lastBottom > 0) {
+    track.style.minHeight = (lastBottom + 16) + "px";
+  }
+}
+
+function layoutAllExplainPills() {
+  document.querySelectorAll(".diff-wrap[data-file-path]").forEach(layoutExplainPills);
+}
+
+// One-time delegated listener — rendered DOM changes a lot, so we attach at the viewer level.
+function setupViewerDelegation() {
+  const viewer = document.getElementById("viewer");
+
+  // ---- Click-and-drag from gutter "+" → multi-line range (GitHub-style) ----
+  viewer.addEventListener("mousedown", (e) => {
+    const addBtn = e.target.closest(".add-comment-btn");
+    if (!addBtn) return;
+    if (e.button !== 0) return;
+    e.preventDefault();  // don't start a text selection
+    const wrap = addBtn.closest(".diff-wrap");
+    const tr = addBtn.closest("tr");
+    if (!wrap || !tr) return;
+    DRAG_STATE = {
+      path: wrap.dataset.filePath,
+      wrap,
+      startInfo: {
+        position: parseInt(tr.dataset.position, 10),
+        line: parseInt(tr.dataset.line, 10),
+        side: tr.dataset.side,
+      },
+      endInfo: null,
+      dragged: false,
+    };
+    document.body.classList.add("dragging-range");
+    tr.classList.add("range-selecting");
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!DRAG_STATE) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el) return;
+    const tr = el.closest("tr.comment-target");
+    if (!tr) return;
+    const wrap = tr.closest(".diff-wrap");
+    if (!wrap || wrap !== DRAG_STATE.wrap) return;  // must stay within the same file
+    const newPos = parseInt(tr.dataset.position, 10);
+    if (newPos !== DRAG_STATE.startInfo.position) DRAG_STATE.dragged = true;
+    DRAG_STATE.endInfo = {
+      position: newPos,
+      line: parseInt(tr.dataset.line, 10),
+      side: tr.dataset.side,
+    };
+    highlightDragRange();
+  });
+
+  document.addEventListener("mouseup", (e) => {
+    if (!DRAG_STATE) return;
+    const { path, wrap, startInfo, endInfo, dragged } = DRAG_STATE;
+    DRAG_STATE = null;
+    document.body.classList.remove("dragging-range");
+    clearDragRange();
+
+    // Close any open editor(s) in this file before opening a new one
+    wrap.querySelectorAll(".comment-editor-row").forEach(r => r.remove());
+
+    if (dragged && endInfo && endInfo.position !== startInfo.position) {
+      // Drag-selected range
+      const [s, finalEnd] = startInfo.position < endInfo.position ? [startInfo, endInfo] : [endInfo, startInfo];
+      COMMENT_ANCHOR = null;
+      openInlineEditor(path, finalEnd, s);
+    } else if (e.shiftKey && COMMENT_ANCHOR && COMMENT_ANCHOR.path === path && COMMENT_ANCHOR.position !== startInfo.position) {
+      // Shift-click on a "+" with an existing anchor → range
+      const [s, finalEnd] = COMMENT_ANCHOR.position < startInfo.position ? [COMMENT_ANCHOR, startInfo] : [startInfo, COMMENT_ANCHOR];
+      COMMENT_ANCHOR = null;
+      openInlineEditor(path, finalEnd, s);
+    } else {
+      // Plain click — single-line editor
+      COMMENT_ANCHOR = { path, ...startInfo };
+      openInlineEditor(path, startInfo, null);
+    }
+  });
+
+  viewer.addEventListener("click", (e) => {
+    // Edit an existing pending thread
+    const editBtn = e.target.closest(".thread-edit");
+    if (editBtn) {
+      const wrap = editBtn.closest(".diff-wrap");
+      const path = wrap.dataset.filePath;
+      const pos = parseInt(editBtn.dataset.position, 10);
+      const c = findPendingForEndPosition(path, pos);
+      if (!c) return;
+      const endInfo = { position: c.end_position, line: c.line, side: c.side };
+      const startInfo = c.start_position ? { position: c.start_position, line: c.start_line, side: c.start_side } : null;
+      openInlineEditor(path, endInfo, startInfo, c.body);
+      return;
+    }
+
+    // Delete an existing pending thread
+    const delBtn = e.target.closest(".thread-delete");
+    if (delBtn) {
+      const wrap = delBtn.closest(".diff-wrap");
+      const path = wrap.dataset.filePath;
+      const pos = parseInt(delBtn.dataset.position, 10);
+      PENDING = PENDING.filter(c => !(c.path === path && c.end_position === pos));
+      savePending();
+      rerenderFileBlock(path);
+      return;
+    }
+
+    // Collapse/expand a file
+    const collapseBtn = e.target.closest(".file-collapse-toggle");
+    if (collapseBtn) {
+      const wrap = collapseBtn.closest(".diff-wrap");
+      const collapsed = wrap.dataset.collapsed === "1";
+      if (collapsed) wrap.removeAttribute("data-collapsed");
+      else wrap.dataset.collapsed = "1";
+      requestAnimationFrame(() => layoutExplainPills(wrap));
+      return;
+    }
+
+    // Collapse/expand an explain-pill
+    const pillToggle = e.target.closest(".explain-pill .toggle");
+    if (pillToggle) {
+      const pill = pillToggle.closest(".explain-pill");
+      pill.classList.toggle("collapsed");
+      pillToggle.textContent = pill.classList.contains("collapsed") ? "+" : "−";
+      requestAnimationFrame(() => layoutExplainPills(pill.closest(".diff-wrap")));
+      return;
+    }
+  });
+
+  // Viewed checkbox uses change event (not click) to read .checked reliably
+  viewer.addEventListener("change", (e) => {
+    const viewedBox = e.target.closest(".file-viewed-checkbox");
+    if (viewedBox) {
+      const wrap = viewedBox.closest(".diff-wrap");
+      const path = wrap.dataset.filePath;
+      if (viewedBox.checked) {
+        VIEWED.add(path);
+        wrap.classList.add("file-viewed");
+        wrap.dataset.collapsed = "1";
+      } else {
+        VIEWED.delete(path);
+        wrap.classList.remove("file-viewed");
+        wrap.removeAttribute("data-collapsed");
+      }
+      saveViewed();
+    }
+  });
+}
+
+function highlightDragRange() {
+  if (!DRAG_STATE) return;
+  clearDragRange();
+  const startPos = DRAG_STATE.startInfo.position;
+  const endPos = (DRAG_STATE.endInfo && DRAG_STATE.endInfo.position) || startPos;
+  const lo = Math.min(startPos, endPos);
+  const hi = Math.max(startPos, endPos);
+  DRAG_STATE.wrap.querySelectorAll("tr.comment-target").forEach(tr => {
+    const p = parseInt(tr.dataset.position, 10);
+    if (p >= lo && p <= hi) tr.classList.add("range-selecting");
+  });
+}
+function clearDragRange() {
+  document.querySelectorAll(".range-selecting").forEach(el => el.classList.remove("range-selecting"));
+}
+
+// Re-render just one file block, preserving scroll and other blocks.
+function rerenderFileBlock(path) {
+  const file = findFileByPath(path);
+  if (!file) return;
+  const wrap = document.querySelector(`.diff-wrap[data-file-path="${path.replace(/"/g, '\\"')}"]`);
+  if (!wrap) return;
+  const tpl = document.createElement("template");
+  tpl.innerHTML = renderFileBlock(file).trim();
+  const newWrap = tpl.content.firstElementChild;
+  wrap.replaceWith(newWrap);
+  requestAnimationFrame(() => layoutExplainPills(newWrap));
+}
+
+function renderThreadRow(path, c) {
+  const rangeLabel = c.start_position
+    ? `Lines ${c.start_line}${c.start_side !== c.side ? ` (${c.start_side.toLowerCase()})` : ""}–${c.line} (${c.side.toLowerCase()})`
+    : `Line ${c.line} (${c.side.toLowerCase()})`;
+  const statusBadge = c.posted
+    ? `<a class="posted-badge" href="${c.github_url}" target="_blank" title="Open on GitHub">Posted ✓</a>`
+    : `<span class="pending-badge">Pending</span>`;
+  return `
+    <tr class="comment-thread-row" data-thread-position="${c.end_position}">
+      <td colspan="2">
+        <div class="comment-thread">
+          <div class="thread-head">
+            <span class="author">You</span>
+            ${statusBadge}
+            <span class="range-label">${rangeLabel}</span>
+            <span class="spacer"></span>
+            ${c.posted ? "" : `<button class="thread-edit" data-position="${c.end_position}">Edit</button>`}
+            <button class="thread-delete" data-position="${c.end_position}">Delete</button>
+          </div>
+          <div class="thread-body">${escape(c.body)}</div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function openInlineEditor(path, endInfo, startInfo, initialBody = "") {
+  const endPos = endInfo.position;
+  // Ensure only one editor per end position
+  const existing = document.querySelector(
+    `.comment-editor-row[data-editor-position="${endPos}"]`
+  );
+  if (existing) {
+    existing.querySelector("textarea").focus();
+    return;
+  }
+  // Remove any saved thread row for this end position while editing
+  const threadRow = document.querySelector(
+    `.comment-thread-row[data-thread-position="${endPos}"]`
+  );
+  if (threadRow) threadRow.remove();
+
+  const targetRow = document.querySelector(
+    `tr.comment-target[data-position="${endPos}"]`
+  );
+  if (!targetRow) return;
+
+  // Mutable — the dropdown may update it; save handler reads it.
+  let currentStart = startInfo;
+
+  const rangeLabel = () => currentStart
+    ? `Lines ${currentStart.line}${currentStart.side !== endInfo.side ? ` (${currentStart.side.toLowerCase()})` : ""}–${endInfo.line} (${endInfo.side.toLowerCase()})`
+    : `Line ${endInfo.line} (${endInfo.side.toLowerCase()})`;
+
+  // Candidate start lines: every commentable line in this file BEFORE endPos (cap at 50 most-recent).
+  const file = findFileByPath(path);
+  const candidates = [];
+  if (file && file.lines) {
+    for (const l of file.lines) {
+      if (l.position >= endPos) break;
+      if (l.type === "hunk") continue;
+      const num = lineNumForLine(l);
+      if (!num) continue;
+      candidates.push({ position: l.position, line: num, side: sideForType(l.type) });
+    }
+  }
+  const startOptions = candidates.slice(-50);
+  const rangeSelect = startOptions.length
+    ? `<select class="range-select" title="Start the range on an earlier line (GitHub multi-line comment)">
+        <option value="">Single line</option>
+        ${startOptions.map(c => {
+          const sel = currentStart && currentStart.position === c.position ? " selected" : "";
+          return `<option value="${c.position}|${c.line}|${c.side}"${sel}>From L${c.line} (${c.side.toLowerCase()})</option>`;
+        }).join("")}
+      </select>`
+    : "";
+
+  const editorTr = document.createElement("tr");
+  editorTr.className = "comment-editor-row";
+  editorTr.dataset.editorPosition = endPos;
+  editorTr.innerHTML = `
+    <td colspan="2">
+      <div class="comment-editor">
+        <div class="editor-head">
+          <span>${escape(path)}</span>
+          <span class="editor-range-label">${rangeLabel()}</span>
+          ${rangeSelect}
+        </div>
+        <textarea placeholder="Leave a comment…">${escape(initialBody)}</textarea>
+        <div class="actions">
+          <button class="editor-cancel">Cancel</button>
+          <button class="primary editor-save">Save</button>
+        </div>
+      </div>
+    </td>
+  `;
+  targetRow.parentNode.insertBefore(editorTr, targetRow.nextSibling);
+
+  const selectEl = editorTr.querySelector(".range-select");
+  const rangeLabelEl = editorTr.querySelector(".editor-range-label");
+  if (selectEl) {
+    selectEl.addEventListener("change", () => {
+      const val = selectEl.value;
+      if (!val) {
+        currentStart = null;
+      } else {
+        const [p, l, s] = val.split("|");
+        currentStart = { position: parseInt(p, 10), line: parseInt(l, 10), side: s };
+      }
+      rangeLabelEl.textContent = rangeLabel();
+    });
+  }
+
+  const textarea = editorTr.querySelector("textarea");
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+  textarea.addEventListener("input", () => {
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, 400) + "px";
+  });
+
+  editorTr.querySelector(".editor-cancel").onclick = () => {
+    editorTr.remove();
+    if (initialBody) {
+      // This was an edit of a saved comment — redraw the file to restore its thread row.
+      rerenderFileBlock(path);
+    }
+  };
+
+  editorTr.querySelector(".editor-save").onclick = async () => {
+    const body = textarea.value.trim();
+    if (!body) { editorTr.remove(); rerenderFileBlock(path); return; }
+    const saveBtn = editorTr.querySelector(".editor-save");
+    const cancelBtn = editorTr.querySelector(".editor-cancel");
+    saveBtn.disabled = true; cancelBtn.disabled = true;
+    saveBtn.textContent = "Posting…";
+
+    // Build entry; save locally first so a network error doesn't lose work.
+    PENDING = PENDING.filter(c => !(c.path === path && c.end_position === endPos));
+    const entry = {
+      path, body,
+      line: endInfo.line, side: endInfo.side,
+      end_position: endPos,
+    };
+    if (currentStart) {
+      entry.start_line = currentStart.line;
+      entry.start_side = currentStart.side;
+      entry.start_position = currentStart.position;
+    }
+    PENDING.push(entry);
+    COMMENT_ANCHOR = null;
+    savePending();
+
+    // Post immediately to GitHub (realtime)
+    const apiPayload = {
+      path: entry.path, body: entry.body,
+      line: entry.line, side: entry.side,
+    };
+    if (entry.start_line) {
+      apiPayload.start_line = entry.start_line;
+      apiPayload.start_side = entry.start_side;
+    }
+    try {
+      const res = await fetch("/api/post-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPayload),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        entry.posted = true;
+        entry.github_url = data.url;
+        entry.github_id = data.id;
+        savePending();
+        toast(`Posted → <a href="${data.url}" target="_blank">view on GitHub</a>`, "ok", 4000);
+      } else {
+        toast(`Post failed (saved locally): ${escape(data.error || "unknown")}`, "bad", 8000);
+      }
+    } catch (e) {
+      toast(`Network error (saved locally): ${escape(e.message)}`, "bad", 8000);
+    }
+
+    rerenderFileBlock(path);
+  };
+
+  textarea.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      editorTr.querySelector(".editor-save").click();
+    } else if (e.key === "Escape") {
+      editorTr.querySelector(".editor-cancel").click();
+    }
+  });
+}
+
+function renderPending() {
+  const unpostedCount = PENDING.filter(c => !c.posted).length;
+  document.getElementById("pending-count").textContent = unpostedCount;
+  const container = document.getElementById("pending-list");
+  container.innerHTML = PENDING.map((c, i) => {
+    const label = c.start_line ? `L${c.start_line}–${c.line}` : `L${c.line}`;
+    const dot = c.posted ? "✓" : "•";
+    const dotColor = c.posted ? "color:var(--ok)" : "color:var(--warn)";
+    return `
+      <div class="pending-item" style="border-left-color:${c.posted ? 'var(--ok)' : 'var(--accent)'}">
+        <span class="remove" data-idx="${i}">✕</span>
+        <div class="path"><span style="${dotColor}">${dot}</span> ${escape(c.path)}:${label}</div>
+        <div class="body">${escape(c.body.substring(0, 100))}${c.body.length > 100 ? "…" : ""}</div>
+      </div>
+    `;
+  }).join("") || "<div style='color:var(--text-dim);font-size:11px'>No comments yet</div>";
+  container.querySelectorAll(".remove").forEach(el => {
+    el.onclick = (e) => {
+      e.stopPropagation();
+      const idx = parseInt(el.dataset.idx, 10);
+      const removed = PENDING[idx];
+      PENDING.splice(idx, 1);
+      savePending();
+      if (removed) rerenderFileBlock(removed.path);
+    };
+  });
+  const submitBtn = document.getElementById("submit-btn");
+  submitBtn.disabled = unpostedCount === 0;
+  submitBtn.textContent = unpostedCount > 0 ? `Retry ${unpostedCount} unposted` : "All posted";
+}
+
+document.getElementById("submit-btn").onclick = async () => {
+  const unposted = PENDING.filter(c => !c.posted);
+  if (!unposted.length) return;
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true;
+  btn.textContent = `Retrying ${unposted.length}…`;
+  let ok = 0, fail = 0;
+  for (const entry of unposted) {
+    const apiPayload = { path: entry.path, body: entry.body, line: entry.line, side: entry.side };
+    if (entry.start_line) {
+      apiPayload.start_line = entry.start_line;
+      apiPayload.start_side = entry.start_side;
+    }
+    try {
+      const res = await fetch("/api/post-comment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(apiPayload),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        entry.posted = true;
+        entry.github_url = data.url;
+        entry.github_id = data.id;
+        ok++;
+      } else {
+        fail++;
+      }
+    } catch (e) {
+      fail++;
+    }
+  }
+  savePending();
+  refreshAllVisibleFiles();
+  toast(`${ok} posted${fail ? `, ${fail} failed` : ""}`, fail ? "bad" : "ok", 6000);
+};
+
+document.getElementById("publish-briefs-btn").onclick = async () => {
+  const briefs = [];
+  for (const [name, feat] of Object.entries(DATA.features)) {
+    for (const f of feat.files) {
+      const body =
+        `**feature:** ${name}\n` +
+        `**TL;DR:** ${feat.tldr || ""}\n\n` +
+        `**Full description:** ${f.description || feat.full_description || ""}`;
+      briefs.push({ path: f.path, body });
+    }
+  }
+  if (!briefs.length) return;
+  if (!confirm(`Post ${briefs.length} feature-brief comments to the PR on GitHub?`)) return;
+  const btn = document.getElementById("publish-briefs-btn");
+  btn.disabled = true;
+  btn.textContent = "Publishing…";
+  try {
+    const res = await fetch("/api/post-briefs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ briefs }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      toast(`Briefs published → <a href="${data.url}" target="_blank">${data.count} comments</a>`, "ok", 8000);
+    } else {
+      toast(`Failed: ${escape(data.error || "unknown")}`, "bad", 8000);
+    }
+  } catch (e) {
+    toast(`Error: ${e.message}`, "bad");
+  }
+  btn.textContent = "Publish briefs";
+  btn.disabled = false;
+};
+
+document.getElementById("clear-btn").onclick = () => {
+  if (!PENDING.length) return;
+  if (!confirm(`Clear ${PENDING.length} pending comment(s)?`)) return;
+  PENDING = [];
+  savePending();
+  refreshAllVisibleFiles();
+};
+
+function refreshAllVisibleFiles() {
+  document.querySelectorAll(".diff-wrap[data-file-path]").forEach(wrap => {
+    rerenderFileBlock(wrap.dataset.filePath);
+  });
+}
+
+function escape(s) {
+  return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+function renderMarkdown(text) {
+  if (!text) return "";
+  if (window.marked) {
+    try {
+      return marked.parse(String(text), { breaks: true, gfm: true });
+    } catch (e) {
+      return escape(text).replace(/\n/g, "<br>");
+    }
+  }
+  return escape(text).replace(/\n/g, "<br>");
+}
+
+function detectLang(path) {
+  const base = path.split("/").pop() || "";
+  const lower = base.toLowerCase();
+  if (lower === "dockerfile" || lower.startsWith("dockerfile.")) return "dockerfile";
+  if (lower === "makefile" || lower === "gnumakefile") return "makefile";
+  if (lower === ".gitignore" || lower === ".dockerignore" || lower === ".npmignore") return "plaintext";
+  const ext = (base.includes(".") ? base.split(".").pop() : "").toLowerCase();
+  const map = {
+    py: "python", pyi: "python",
+    js: "javascript", mjs: "javascript", cjs: "javascript", jsx: "javascript",
+    ts: "typescript", tsx: "typescript",
+    vue: "xml", svelte: "xml", html: "xml", htm: "xml", xml: "xml",
+    md: "markdown", mdx: "markdown",
+    yml: "yaml", yaml: "yaml",
+    json: "json", jsonc: "json",
+    sql: "sql",
+    css: "css", scss: "scss", sass: "scss", less: "less",
+    sh: "bash", bash: "bash", zsh: "bash", fish: "bash",
+    rb: "ruby",
+    go: "go",
+    rs: "rust",
+    java: "java",
+    c: "c", h: "c", cpp: "cpp", cc: "cpp", cxx: "cpp", hpp: "cpp",
+    cs: "csharp",
+    php: "php",
+    swift: "swift",
+    kt: "kotlin", kts: "kotlin",
+    toml: "ini", ini: "ini", cfg: "ini",
+    env: "bash",
+    lock: "plaintext", txt: "plaintext",
+    r: "r",
+    lua: "lua",
+    pl: "perl", pm: "perl",
+  };
+  return map[ext] || null;
+}
+
+function renderLineContent(line, lang) {
+  if (line.type === "hunk") {
+    return `<span style="color:#6e7681">${escape(line.content)}</span>`;
+  }
+  const raw = line.content || "";
+  const prefix = raw.length ? raw[0] : " ";
+  const rest = raw.slice(1);
+  let body;
+  if (lang && window.hljs && rest.length) {
+    try {
+      body = hljs.highlight(rest, { language: lang, ignoreIllegals: true }).value;
+    } catch {
+      body = escape(rest);
+    }
+  } else {
+    body = escape(rest);
+  }
+  return `<span class="diff-prefix">${escape(prefix)}</span>${body}`;
+}
+
+init();
+</script>
+
+</body>
+</html>
