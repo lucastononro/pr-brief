@@ -1,0 +1,21 @@
+{
+  "name": "pr-brief-marketplace",
+  "owner": {
+    "name": "Lucas Tonon",
+    "email": "ltononro@gmail.com"
+  },
+  "metadata": {
+    "description": "Marketplace for pr-brief — an interactive, AI-narrated PR review UI for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "pr-brief",
+      "source": "./plugins/pr-brief",
+      "description": "Interactive browser-based PR review with AI-authored narrative explain pills, GitHub-style stacked diffs, and realtime inline comment posting via gh.",
+      "category": "code-review",
+      "keywords": ["pull-request", "code-review", "github", "diff", "narrative", "ai-review"],
+      "homepage": "https://github.com/lucastononro/pr-brief",
+      "license": "MIT"
+    }
+  ]
+}
