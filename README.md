@@ -6,6 +6,12 @@ This repository is a **plugin marketplace**. It ships one plugin: `pr-brief`.
 
 ---
 
+## Demo
+
+[![Watch the demo](https://img.youtube.com/vi/9d9u7UEAgLU/maxresdefault.jpg)](https://youtu.be/9d9u7UEAgLU)
+
+---
+
 ## Install
 
 In Claude Code:
