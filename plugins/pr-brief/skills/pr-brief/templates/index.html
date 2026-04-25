@@ -86,6 +86,20 @@
   .pending-item .remove { float: right; cursor: pointer; color: var(--text-dim); }
   .pending-item .remove:hover { color: var(--danger); }
   .pending-actions { display: flex; gap: 6px; margin-top: 10px; }
+  /* Mode toggle: Realtime vs Batch posting */
+  .mode-toggle {
+    display: flex; gap: 0; margin: 6px 0 10px;
+    border: 1px solid var(--border); border-radius: 6px; overflow: hidden;
+  }
+  .mode-toggle button {
+    flex: 1; padding: 5px 8px; font-size: 11px;
+    background: var(--bg); color: var(--text-dim);
+    border: none; border-radius: 0;
+  }
+  .mode-toggle button + button { border-left: 1px solid var(--border); }
+  .mode-toggle button.active { background: var(--bg-raised); color: var(--text); }
+  .mode-toggle button:hover:not(.active) { background: var(--bg-hover); color: var(--text); }
+  .mode-hint { font-size: 10.5px; color: var(--text-dim); margin: -4px 0 8px; line-height: 1.4; }
   button {
     background: var(--bg-raised); color: var(--text);
     border: 1px solid var(--border); border-radius: 6px;
@@ -422,6 +436,11 @@
 
     <div class="pending-box">
       <h3>Pending comments (<span id="pending-count">0</span>)</h3>
+      <div class="mode-toggle" id="mode-toggle">
+        <button data-mode="realtime" title="Post each comment as you save (single comment endpoint)">Realtime</button>
+        <button data-mode="batch" title="Queue locally, then post all comments as one review (avoids GitHub secondary rate limits)">Batch</button>
+      </div>
+      <div class="mode-hint" id="mode-hint"></div>
       <div id="pending-list"></div>
       <div class="pending-actions">
         <button id="publish-briefs-btn" title="Post the feature briefs as inline comments on GitHub">Publish briefs</button>
@@ -446,15 +465,45 @@ let PENDING = [];
 let VIEWED = new Set();  // paths marked "Viewed"
 let COMMENT_ANCHOR = null;  // {path, position, line, side, type} — last-clicked "+" for shift-click range
 let DRAG_STATE = null;      // active click-and-drag from gutter
+let MODE = "realtime";      // "realtime" (POST per save) | "batch" (queue, post as one review)
 
 const STORAGE_KEY = () => `pr-brief-pending-${CONTEXT?.repo}-${CONTEXT?.pr}`;
 const VIEWED_KEY = () => `pr-brief-viewed-${CONTEXT?.repo}-${CONTEXT?.pr}`;
+const MODE_KEY = () => `pr-brief-mode-${CONTEXT?.repo}-${CONTEXT?.pr}`;
 
 function loadViewed() {
   try { VIEWED = new Set(JSON.parse(localStorage.getItem(VIEWED_KEY()) || "[]")); } catch { VIEWED = new Set(); }
 }
 function saveViewed() {
   localStorage.setItem(VIEWED_KEY(), JSON.stringify([...VIEWED]));
+}
+
+function loadMode() {
+  const stored = localStorage.getItem(MODE_KEY());
+  MODE = (stored === "batch") ? "batch" : "realtime";
+}
+function saveMode() {
+  localStorage.setItem(MODE_KEY(), MODE);
+}
+function setMode(next) {
+  if (MODE === next) return;
+  MODE = next;
+  saveMode();
+  renderModeToggle();
+  renderPending();
+}
+function renderModeToggle() {
+  const toggle = document.getElementById("mode-toggle");
+  if (!toggle) return;
+  toggle.querySelectorAll("button").forEach(b => {
+    b.classList.toggle("active", b.dataset.mode === MODE);
+  });
+  const hint = document.getElementById("mode-hint");
+  if (hint) {
+    hint.textContent = MODE === "batch"
+      ? "Saves queue locally. Click 'Submit as one review' to post all at once — sidesteps GitHub's secondary rate limit."
+      : "Each save posts immediately to GitHub.";
+  }
 }
 
 function savePending() {
@@ -520,9 +569,14 @@ async function init() {
   DATA = data;
   loadPending();
   loadViewed();
+  loadMode();
 
   renderHeader();
   renderFeatureList();
+  renderModeToggle();
+  document.getElementById("mode-toggle").querySelectorAll("button").forEach(b => {
+    b.onclick = () => setMode(b.dataset.mode);
+  });
   renderPending();
   setupViewerDelegation();
   checkAuth();
@@ -1069,7 +1123,14 @@ function openInlineEditor(path, endInfo, startInfo, initialBody = "") {
     COMMENT_ANCHOR = null;
     savePending();
 
-    // Post immediately to GitHub (realtime)
+    if (MODE === "batch") {
+      // Queue only — user clicks "Submit as one review" to post.
+      toast(`Queued (${PENDING.filter(c => !c.posted).length} pending). Submit when ready.`, "ok", 3000);
+      rerenderFileBlock(path);
+      return;
+    }
+
+    // Realtime: post immediately to GitHub
     const apiPayload = {
       path: entry.path, body: entry.body,
       line: entry.line, side: entry.side,
@@ -1091,6 +1152,9 @@ function openInlineEditor(path, endInfo, startInfo, initialBody = "") {
         entry.github_id = data.id;
         savePending();
         toast(`Posted → <a href="${data.url}" target="_blank">view on GitHub</a>`, "ok", 4000);
+      } else if (data.rate_limited) {
+        toast(`Rate limited by GitHub. Switching to <b>Batch</b> mode — submit when you're done.`, "bad", 10000);
+        setMode("batch");
       } else {
         toast(`Post failed (saved locally): ${escape(data.error || "unknown")}`, "bad", 8000);
       }
@@ -1139,7 +1203,11 @@ function renderPending() {
   });
   const submitBtn = document.getElementById("submit-btn");
   submitBtn.disabled = unpostedCount === 0;
-  submitBtn.textContent = unpostedCount > 0 ? `Retry ${unpostedCount} unposted` : "All posted";
+  if (MODE === "batch") {
+    submitBtn.textContent = unpostedCount > 0 ? `Submit ${unpostedCount} as one review` : "All posted";
+  } else {
+    submitBtn.textContent = unpostedCount > 0 ? `Retry ${unpostedCount} unposted` : "All posted";
+  }
 }
 
 document.getElementById("submit-btn").onclick = async () => {
@@ -1147,8 +1215,42 @@ document.getElementById("submit-btn").onclick = async () => {
   if (!unposted.length) return;
   const btn = document.getElementById("submit-btn");
   btn.disabled = true;
+
+  if (MODE === "batch") {
+    // One API call for all comments — sidesteps secondary rate limit.
+    btn.textContent = `Submitting ${unposted.length}…`;
+    const comments = unposted.map(c => {
+      const o = { path: c.path, body: c.body, line: c.line, side: c.side };
+      if (c.start_line) { o.start_line = c.start_line; o.start_side = c.start_side; }
+      return o;
+    });
+    try {
+      const res = await fetch("/api/submit-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comments, summary: "" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        for (const c of unposted) { c.posted = true; c.github_url = data.url; }
+        savePending();
+        refreshAllVisibleFiles();
+        toast(`Posted ${data.count} as one review → <a href="${data.url}" target="_blank">view on GitHub</a>`, "ok", 8000);
+      } else if (data.rate_limited) {
+        toast(`Rate limited. Wait ~${data.retry_after_seconds || 60}s and submit again.`, "bad", 10000);
+      } else {
+        toast(`Submit failed: ${escape(data.error || "unknown")}`, "bad", 8000);
+      }
+    } catch (e) {
+      toast(`Network error: ${escape(e.message)}`, "bad", 8000);
+    }
+    renderPending();
+    return;
+  }
+
+  // Realtime: per-comment retries.
   btn.textContent = `Retrying ${unposted.length}…`;
-  let ok = 0, fail = 0;
+  let ok = 0, fail = 0, hitRateLimit = false;
   for (const entry of unposted) {
     const apiPayload = { path: entry.path, body: entry.body, line: entry.line, side: entry.side };
     if (entry.start_line) {
@@ -1169,6 +1271,7 @@ document.getElementById("submit-btn").onclick = async () => {
         ok++;
       } else {
         fail++;
+        if (data.rate_limited) { hitRateLimit = true; break; }
       }
     } catch (e) {
       fail++;
@@ -1176,7 +1279,12 @@ document.getElementById("submit-btn").onclick = async () => {
   }
   savePending();
   refreshAllVisibleFiles();
-  toast(`${ok} posted${fail ? `, ${fail} failed` : ""}`, fail ? "bad" : "ok", 6000);
+  if (hitRateLimit) {
+    toast(`${ok} posted, hit GitHub rate limit. Switching to <b>Batch</b> mode — submit the rest when ready.`, "bad", 10000);
+    setMode("batch");
+  } else {
+    toast(`${ok} posted${fail ? `, ${fail} failed` : ""}`, fail ? "bad" : "ok", 6000);
+  }
 };
 
 document.getElementById("publish-briefs-btn").onclick = async () => {
