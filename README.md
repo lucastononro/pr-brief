@@ -1,4 +1,4 @@
-# pr-brief — Claude Code marketplace
+# pr-brief — Claude Code skill
 
 An interactive, browser-based PR review workflow for [Claude Code](https://docs.claude.com/en/docs/claude-code/overview). It pulls a pull request via `gh`, asks an Opus agent to group every changed file into features and author a **narrative layer** of "explain pills", and launches a local UI with GitHub-style stacked diffs, click-and-drag multi-line inline commenting, and realtime comment posting.
 
