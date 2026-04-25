@@ -1,7 +1,7 @@
 {
   "name": "pr-brief",
   "description": "Interactive browser-based PR review with AI-authored narrative explain pills, GitHub-style stacked diffs, and realtime inline comment posting via gh.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "author": {
     "name": "Lucas Tonon",
     "email": "ltononro@gmail.com"
