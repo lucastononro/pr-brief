@@ -214,7 +214,7 @@
     border-left: 1px solid var(--border); background: rgba(187,128,255,0.02);
     min-height: 100%;
   }
-  .diff-wrap[data-no-explanations="1"] .explain-track { display: none; }
+  .diff-wrap[data-no-pills="1"] .explain-track { display: none; }
   .explain-pill {
     position: absolute; right: 10px; left: 10px;
     background: var(--bg-raised);
@@ -264,6 +264,113 @@
   /* Highlight the rows inside an explanation's range */
   .diff-table tr.explain-range > .gutter {
     box-shadow: inset 3px 0 0 #bb80ff;
+  }
+
+  /* Critique-pill (AI review/critique callouts) — share the right-side track with explain pills */
+  .critique-pill {
+    position: absolute; right: 10px; left: 10px;
+    background: var(--bg-raised);
+    border: 1px solid rgba(248,81,73,0.45);
+    border-left: 3px solid #f85149;
+    border-radius: 6px;
+    padding: 7px 10px; font-size: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    transition: top 0.18s ease;
+  }
+  .critique-pill .pill-head {
+    display: flex; gap: 6px; align-items: center;
+    font-weight: 600; user-select: none;
+  }
+  .critique-pill .pill-head .icon { color: #f85149; flex-shrink: 0; }
+  .critique-pill .pill-head .title {
+    flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .critique-pill .pill-head .severity-badge {
+    flex-shrink: 0; padding: 1px 7px; border-radius: 10px;
+    font: 700 10px ui-monospace, SFMono-Regular, monospace;
+    color: white; letter-spacing: 0.5px;
+  }
+  /* Severity color scale: 1 (nit) -> 5 (blocker) */
+  .critique-pill .pill-head .severity-badge[data-sev="1"] { background: #b58a2b; }
+  .critique-pill .pill-head .severity-badge[data-sev="2"] { background: #d29922; }
+  .critique-pill .pill-head .severity-badge[data-sev="3"] { background: #e07a3a; }
+  .critique-pill .pill-head .severity-badge[data-sev="4"] { background: #ef4444; }
+  .critique-pill .pill-head .severity-badge[data-sev="5"] {
+    background: #b62324;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.18);
+  }
+  .critique-pill .pill-head .toggle {
+    background: transparent; border: none; color: var(--text-dim);
+    padding: 2px 6px; cursor: pointer; font-size: 11px; border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .critique-pill .pill-head .toggle:hover { color: var(--text); background: var(--bg-hover); }
+  .critique-pill .pill-range {
+    font: 10px ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-dim); margin-top: 2px;
+  }
+  .critique-pill .pill-body {
+    margin-top: 8px; line-height: 1.5; font-weight: normal;
+    overflow: auto; resize: vertical;
+    max-height: 60vh;
+  }
+  .critique-pill .pill-body p { margin: 4px 0; }
+  .critique-pill .pill-body p:first-child { margin-top: 0; }
+  .critique-pill .pill-body p:last-child { margin-bottom: 0; }
+  .critique-pill .pill-body ul, .critique-pill .pill-body ol { margin: 4px 0; padding-left: 18px; }
+  .critique-pill .pill-body code {
+    background: var(--bg); padding: 1px 5px; border-radius: 3px;
+    font: 11px ui-monospace, SFMono-Regular, monospace; color: #ff7b72;
+  }
+  .critique-pill .pill-body pre {
+    background: var(--bg); padding: 8px; border-radius: 4px;
+    overflow-x: auto; font-size: 11px;
+  }
+  .critique-pill .pill-body strong { color: var(--text); }
+  .critique-pill .pill-suggestion {
+    margin-top: 8px;
+    border: 1px solid rgba(63,185,80,0.35);
+    border-radius: 4px;
+    background: rgba(63,185,80,0.05);
+    overflow: hidden;
+  }
+  .critique-pill .pill-suggestion .label {
+    padding: 3px 8px; font: 700 10px -apple-system, sans-serif;
+    background: rgba(63,185,80,0.14);
+    color: var(--ok);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .critique-pill .pill-suggestion pre {
+    margin: 0; padding: 8px;
+    background: var(--bg); color: var(--text);
+    font: 11px/1.4 ui-monospace, SFMono-Regular, monospace;
+    white-space: pre-wrap; word-wrap: break-word;
+  }
+  .critique-pill .pill-actions {
+    margin-top: 8px;
+    display: flex; gap: 6px; justify-content: flex-end;
+  }
+  .critique-pill .use-as-comment {
+    padding: 4px 10px; font-size: 11px; border-radius: 4px;
+    background: rgba(248,81,73,0.12);
+    border: 1px solid rgba(248,81,73,0.4);
+    color: #ff7b72; cursor: pointer;
+  }
+  .critique-pill .use-as-comment:hover {
+    background: rgba(248,81,73,0.25); color: white;
+  }
+  .critique-pill.collapsed .pill-body,
+  .critique-pill.collapsed .pill-suggestion,
+  .critique-pill.collapsed .pill-actions,
+  .critique-pill.collapsed .pill-range { display: none; }
+  /* Highlight rows inside a critique's range — red gutter accent */
+  .diff-table tr.critique-range > .gutter {
+    box-shadow: inset 3px 0 0 #f85149;
+  }
+  /* If a row is in BOTH an explain and a critique range, layer both colors */
+  .diff-table tr.explain-range.critique-range > .gutter {
+    box-shadow: inset 3px 0 0 #bb80ff, inset 6px 0 0 #f85149;
   }
   .diff-table { width: 100%; border-collapse: collapse; font: 12px/1.4 ui-monospace, SFMono-Regular, monospace; }
   .diff-table td { padding: 0; vertical-align: top; }
@@ -669,14 +776,16 @@ function renderFileBlock(file) {
   const isViewed = VIEWED.has(file.path);
   const hasComments = PENDING.some(c => c.path === file.path);
   const explanations = file.explanations || [];
-  const noExplanations = explanations.length === 0;
+  const critiques = file.critiques || [];
+  const noPills = explanations.length === 0 && critiques.length === 0;
   const tableHtml = (!file.lines || !file.lines.length)
     ? `<div class="empty">(binary or rename — not displayable)</div>`
-    : renderDiffTable(file, explanations);
-  const pillsHtml = explanations.map((e, i) => renderExplainPill(file.path, e, i)).join("");
+    : renderDiffTable(file, explanations, critiques);
+  const explainHtml = explanations.map((e, i) => renderExplainPill(file.path, e, i)).join("");
+  const critiqueHtml = critiques.map((c, i) => renderCritiquePill(file.path, c, i)).join("");
 
   return `
-    <div class="diff-wrap${isViewed ? " file-viewed" : ""}" data-file-path="${escape(file.path)}"${isViewed ? ' data-collapsed="1"' : ""}${noExplanations ? ' data-no-explanations="1"' : ""}>
+    <div class="diff-wrap${isViewed ? " file-viewed" : ""}" data-file-path="${escape(file.path)}"${isViewed ? ' data-collapsed="1"' : ""}${noPills ? ' data-no-pills="1"' : ""}>
       <div class="file-header">
         <button class="file-collapse-toggle" title="Collapse/expand">▼</button>
         <span class="file-path">${escape(file.path)}</span>
@@ -686,6 +795,7 @@ function renderFileBlock(file) {
         </span>
         ${hasComments ? `<span class="has-comments-badge" title="Has pending comments">💬</span>` : ""}
         ${explanations.length ? `<span class="has-comments-badge" title="${explanations.length} AI explanation(s)" style="color:#bb80ff">✨ ${explanations.length}</span>` : ""}
+        ${critiques.length ? `<span class="has-comments-badge" title="${critiques.length} AI critique(s)" style="color:#ff7b72">⚠ ${critiques.length}</span>` : ""}
         <span class="spacer"></span>
         <label class="viewed-label">
           <input type="checkbox" class="file-viewed-checkbox" ${isViewed ? "checked" : ""}>
@@ -699,7 +809,7 @@ function renderFileBlock(file) {
       </div>` : ""}
       <div class="diff-body">
         <div class="diff-content">${tableHtml}</div>
-        <div class="explain-track">${pillsHtml}</div>
+        <div class="explain-track">${explainHtml}${critiqueHtml}</div>
       </div>
     </div>
   `;
@@ -723,11 +833,53 @@ function renderExplainPill(path, exp, idx) {
   `;
 }
 
-function renderDiffTable(file, explanations = []) {
+function renderCritiquePill(path, crit, idx) {
+  const range = crit.start_line && crit.end_line && crit.start_line !== crit.end_line
+    ? `Lines ${crit.start_line}–${crit.end_line} (${(crit.side || "right").toLowerCase()})`
+    : `Line ${crit.end_line || crit.start_line || "?"} (${(crit.side || "right").toLowerCase()})`;
+  const title = crit.title || "AI critique";
+  const sev = Math.max(1, Math.min(5, parseInt(crit.severity || 3, 10)));
+  const suggestionHtml = crit.suggested_change
+    ? `<div class="pill-suggestion"><div class="label">Suggested change</div><pre>${escape(crit.suggested_change)}</pre></div>`
+    : "";
+  return `
+    <div class="critique-pill" data-start-position="${crit.start_position || crit.end_position || ""}" data-end-position="${crit.end_position || ""}" data-pill-idx="${idx}">
+      <div class="pill-head">
+        <span class="icon">⚠</span>
+        <span class="title">${escape(title)}</span>
+        <span class="severity-badge" data-sev="${sev}" title="Severity ${sev}/5 (5 = most critical)">S${sev}</span>
+        <button class="toggle" title="Collapse/expand">−</button>
+      </div>
+      <div class="pill-range">${range}</div>
+      <div class="pill-body">${renderMarkdown(crit.body || "")}</div>
+      ${suggestionHtml}
+      <div class="pill-actions">
+        <button class="use-as-comment" title="Open the comment editor pre-filled with this critique">Use as comment →</button>
+      </div>
+    </div>
+  `;
+}
+
+// Build the textarea contents when a user converts a critique into a review comment.
+// Title becomes a bold heading, body follows as markdown, and any suggested_change
+// is wrapped in GitHub's ```suggestion``` block so submitting the comment renders
+// the inline accept-suggestion UI on GitHub.
+function buildCommentFromCritique(crit) {
+  const parts = [];
+  if (crit.title) parts.push(`**${crit.title}**`);
+  if (crit.body) parts.push(crit.body);
+  if (crit.suggested_change) {
+    parts.push("```suggestion\n" + crit.suggested_change.replace(/\n+$/, "") + "\n```");
+  }
+  return parts.join("\n\n");
+}
+
+function renderDiffTable(file, explanations = [], critiques = []) {
   const lang = detectLang(file.path);
   const rows = [];
-  // Build a set of positions that fall inside any explanation's range
+  // Build sets of positions that fall inside any explanation/critique range
   const explainedPositions = new Set();
+  const critiquedPositions = new Set();
   for (const e of explanations) {
     const lo = Math.min(e.start_position || 0, e.end_position || 0);
     const hi = Math.max(e.start_position || 0, e.end_position || 0);
@@ -735,10 +887,18 @@ function renderDiffTable(file, explanations = []) {
       for (let p = lo; p <= hi; p++) explainedPositions.add(p);
     }
   }
+  for (const c of critiques) {
+    const lo = Math.min(c.start_position || 0, c.end_position || 0);
+    const hi = Math.max(c.start_position || 0, c.end_position || 0);
+    if (lo > 0 && hi > 0) {
+      for (let p = lo; p <= hi; p++) critiquedPositions.add(p);
+    }
+  }
   for (const line of file.lines) {
     const classes = [line.type];
     if (line.type !== "hunk") classes.push("comment-target");
     if (explainedPositions.has(line.position)) classes.push("explain-range");
+    if (critiquedPositions.has(line.position)) classes.push("critique-range");
     let gutter = "";
     if (line.type === "add" || line.type === "del" || line.type === "context") {
       gutter = lineNumForLine(line) || "";
@@ -773,7 +933,7 @@ function layoutExplainPills(wrap) {
   if (!track) return;
   // Reset min-height so we can re-measure cleanly across layout passes
   track.style.minHeight = "";
-  const pills = Array.from(track.querySelectorAll(".explain-pill"))
+  const pills = Array.from(track.querySelectorAll(".explain-pill, .critique-pill"))
     .sort((a, b) => parseInt(a.dataset.startPosition || 0, 10) - parseInt(b.dataset.startPosition || 0, 10));
   const trackRect = track.getBoundingClientRect();
   let lastBottom = 0;
@@ -910,13 +1070,57 @@ function setupViewerDelegation() {
       return;
     }
 
-    // Collapse/expand an explain-pill
-    const pillToggle = e.target.closest(".explain-pill .toggle");
+    // Collapse/expand an explain-pill or critique-pill
+    const pillToggle = e.target.closest(".explain-pill .toggle, .critique-pill .toggle");
     if (pillToggle) {
-      const pill = pillToggle.closest(".explain-pill");
+      const pill = pillToggle.closest(".explain-pill, .critique-pill");
       pill.classList.toggle("collapsed");
       pillToggle.textContent = pill.classList.contains("collapsed") ? "+" : "−";
       requestAnimationFrame(() => layoutExplainPills(pill.closest(".diff-wrap")));
+      return;
+    }
+
+    // "Use as comment" on a critique pill — open the inline editor pre-filled
+    const useBtn = e.target.closest(".critique-pill .use-as-comment");
+    if (useBtn) {
+      const pill = useBtn.closest(".critique-pill");
+      const wrap = pill.closest(".diff-wrap");
+      const path = wrap.dataset.filePath;
+      const startPos = parseInt(pill.dataset.startPosition, 10);
+      const endPos = parseInt(pill.dataset.endPosition, 10);
+      const critIdx = parseInt(pill.dataset.pillIdx, 10);
+      const file = findFileByPath(path);
+      const crit = file && file.critiques ? file.critiques[critIdx] : null;
+      if (!crit) return;
+      const endLineObj = findLineByPosition(file, endPos);
+      if (!endLineObj || endLineObj.type === "hunk") {
+        toast(`Could not resolve critique end position ${endPos}`, "bad");
+        return;
+      }
+      const endInfo = {
+        position: endPos,
+        line: lineNumForLine(endLineObj),
+        side: sideForType(endLineObj.type),
+      };
+      let startInfo = null;
+      if (startPos && startPos !== endPos) {
+        const startLineObj = findLineByPosition(file, startPos);
+        if (startLineObj && startLineObj.type !== "hunk") {
+          startInfo = {
+            position: startPos,
+            line: lineNumForLine(startLineObj),
+            side: sideForType(startLineObj.type),
+          };
+        }
+      }
+      // Close any open editor in this file before opening the new one
+      wrap.querySelectorAll(".comment-editor-row").forEach(r => r.remove());
+      openInlineEditor(path, endInfo, startInfo, buildCommentFromCritique(crit));
+      // Scroll the editor into view so the user sees what was filled in
+      requestAnimationFrame(() => {
+        const editor = wrap.querySelector(`.comment-editor-row[data-editor-position="${endPos}"]`);
+        if (editor) editor.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
       return;
     }
   });
