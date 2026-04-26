@@ -366,8 +366,10 @@ These behaviors are part of the bundled `index.html` and `server.py`. **Do not r
   1. **Click-and-drag** from the gutter `+` across lines (GitHub-native UX). Live blue band highlights the range.
   2. **Shift-click** a second `+` after a previous click.
   3. **Dropdown** in the editor header: "Single line / From L42 / From L41 / ..." (last 50 commentable lines).
-- **Realtime posting.** Save in the editor → POST to `/api/post-comment` → server shells `gh api repos/.../pulls/<num>/comments` (single-comment endpoint, same as GitHub's "Add single comment" button). On success the thread badge becomes green **Posted ✓** with a link to the GitHub URL. On failure the comment stays in `localStorage` with a yellow **Pending** badge; the user can click "Retry N unposted" in the sidebar.
-- **Submit button is for retries, not batching.** Disabled when everything is posted. Label updates dynamically: `Retry N unposted` / `All posted`.
+- **Posting modes — Realtime / Batch (toggle in sidebar).** Default is Realtime: each Save POSTs `/api/post-comment` immediately, server shells `gh api repos/.../pulls/<num>/comments`. Switching to Batch makes Save just queue locally; clicking the sidebar submit button POSTs `/api/submit-review` once with all queued comments (single API call, sidesteps GitHub's secondary rate limit). Mode persists in `localStorage` per PR (`pr-brief-mode-<repo>-<num>`).
+- **Server-side throttle.** All write endpoints (`/api/post-comment`, `/api/submit-review`, `/api/post-briefs`) gate behind a 1.5s minimum gap (per GitHub's "≥1s between writes" guidance) via a single threading lock — even with concurrent saves, the actual `gh` calls are serialized.
+- **Secondary rate-limit detection.** If `gh` returns "secondary rate limit" output, the server replies HTTP 429 with `{ok:false, rate_limited:true, retry_after_seconds:60, hint}`. The frontend detects this, shows a "Rate limited — switching to Batch" toast, and auto-flips MODE to `batch`.
+- **Submit button.** Disabled when nothing is unposted. Label depends on MODE: Realtime → `Retry N unposted` / `All posted`; Batch → `Submit N as one review` / `All posted`.
 
 ---
 
@@ -379,8 +381,8 @@ Stdlib-only Python `http.server`:
 - `GET /data.json` → static
 - `GET /api/context` → `{pr, repo, sha}` for the UI
 - `POST /api/auth-status` → runs `gh auth status`, returns `{ok, message}`
-- `POST /api/post-comment` (**realtime path**) → body `{path, body, line, side, start_line?, start_side?}` → `gh api repos/<repo>/pulls/<pr>/comments` → returns `{ok, url, id}`
-- `POST /api/submit-review` (legacy/batch) → body `{comments: [...], summary}` → `gh api repos/<repo>/pulls/<pr>/reviews` (event=COMMENT) → returns `{ok, url, count}`. Used by "Publish briefs".
+- `POST /api/post-comment` (**realtime path**) → body `{path, body, line, side, start_line?, start_side?}` → throttle 1.5s → `gh api repos/<repo>/pulls/<pr>/comments` → returns `{ok, url, id}`. On secondary rate limit returns 429 with `{ok:false, rate_limited:true, retry_after_seconds, hint}`.
+- `POST /api/submit-review` (**batch path**) → body `{comments: [...], summary}` → throttle 1.5s → `gh api repos/<repo>/pulls/<pr>/reviews` (event=COMMENT) → returns `{ok, url, id, count}`. Used by Batch-mode submit and "Publish briefs". Same 429 contract on rate limit.
 - `POST /api/post-briefs` → posts feature briefs as `position: 1` comments per file via the reviews endpoint
 
 All POST endpoints expect/emit JSON.

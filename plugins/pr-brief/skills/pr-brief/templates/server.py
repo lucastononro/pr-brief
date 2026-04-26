@@ -8,11 +8,35 @@ import argparse
 import json
 import subprocess
 import sys
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ARGS = None
 ROOT = Path(__file__).parent.resolve()
+
+# GitHub's secondary rate limit fires when many writes hit the same resource
+# in quick succession. Their guidance: at least 1s between writes. We use 1.5s
+# for headroom across concurrent saves.
+_MIN_WRITE_GAP = 1.5
+_write_lock = threading.Lock()
+_last_write_ts = 0.0
+
+
+def throttle_write():
+    """Block until at least _MIN_WRITE_GAP has passed since the last write."""
+    global _last_write_ts
+    with _write_lock:
+        now = time.monotonic()
+        wait = (_last_write_ts + _MIN_WRITE_GAP) - now
+        if wait > 0:
+            time.sleep(wait)
+        _last_write_ts = time.monotonic()
+
+
+def is_secondary_rate_limit(text):
+    return "secondary rate limit" in (text or "").lower()
 
 
 def run_gh(args, input_data=None):
@@ -124,6 +148,7 @@ class Handler(BaseHTTPRequestHandler):
                 "body": summary,
                 "comments": api_comments,
             }
+            throttle_write()
             out, err, rc = run_gh(
                 [
                     "api",
@@ -134,7 +159,18 @@ class Handler(BaseHTTPRequestHandler):
                 input_data=json.dumps(payload),
             )
             if rc != 0:
-                self._send_json(500, {"error": err or out, "payload": payload})
+                msg = err or out
+                if is_secondary_rate_limit(msg):
+                    self._send_json(429, {
+                        "ok": False,
+                        "error": msg,
+                        "retryable": True,
+                        "rate_limited": True,
+                        "retry_after_seconds": 60,
+                        "hint": "GitHub secondary rate limit. Wait ~1 min before retrying.",
+                    })
+                    return
+                self._send_json(500, {"error": msg, "payload": payload})
                 return
             try:
                 response = json.loads(out)
@@ -167,6 +203,7 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("start_line") and body.get("start_side"):
                 payload["start_line"] = body["start_line"]
                 payload["start_side"] = body["start_side"]
+            throttle_write()
             out, err, rc = run_gh(
                 [
                     "api",
@@ -177,7 +214,18 @@ class Handler(BaseHTTPRequestHandler):
                 input_data=json.dumps(payload),
             )
             if rc != 0:
-                self._send_json(500, {"error": err or out, "payload": payload})
+                msg = err or out
+                if is_secondary_rate_limit(msg):
+                    self._send_json(429, {
+                        "ok": False,
+                        "error": msg,
+                        "retryable": True,
+                        "rate_limited": True,
+                        "retry_after_seconds": 60,
+                        "hint": "GitHub secondary rate limit. Switch to Batch mode or wait ~1 min.",
+                    })
+                    return
+                self._send_json(500, {"error": msg, "payload": payload})
                 return
             try:
                 response = json.loads(out)
@@ -204,6 +252,7 @@ class Handler(BaseHTTPRequestHandler):
                     for b in briefs
                 ],
             }
+            throttle_write()
             out, err, rc = run_gh(
                 [
                     "api",
@@ -214,7 +263,18 @@ class Handler(BaseHTTPRequestHandler):
                 input_data=json.dumps(payload),
             )
             if rc != 0:
-                self._send_json(500, {"error": err or out})
+                msg = err or out
+                if is_secondary_rate_limit(msg):
+                    self._send_json(429, {
+                        "ok": False,
+                        "error": msg,
+                        "retryable": True,
+                        "rate_limited": True,
+                        "retry_after_seconds": 60,
+                        "hint": "GitHub secondary rate limit. Wait ~1 min before retrying.",
+                    })
+                    return
+                self._send_json(500, {"error": msg})
                 return
             try:
                 response = json.loads(out)
