@@ -4,6 +4,15 @@ An interactive, browser-based PR review workflow for [Claude Code](https://docs.
 
 This repository is a **plugin marketplace**. It ships one plugin: `pr-brief`.
 
+What reviewers get:
+
+- A reviewer-ordered file list (migrations first, tests last) grouped into the features the PR actually contains
+- Two parallel narrative layers next to each diff:
+  - Purple ✨ **explain pills** — short AI-authored callouts that connect each block to the broader change
+  - Red ⚠ **critique pills** with a severity score S1–S5 — actual review concerns, optional `suggested_change` blocks, and a "Use as comment →" button that turns a critique into an inline GitHub comment in one click
+- Click-and-drag multi-line inline comments that POST to GitHub in realtime via `gh api`
+- Runs locally; the only external call is to the Anthropic API your Claude Code session is already using
+
 ---
 
 ## Demo

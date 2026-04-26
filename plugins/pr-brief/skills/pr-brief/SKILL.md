@@ -1,7 +1,7 @@
 ---
 name: pr-brief
 allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(gh pr list:*), Bash(gh api:*), Bash(gh auth:*), Bash(gh repo view:*), Bash(python3:*), Bash(open:*), Bash(mkdir:*), Bash(cp:*), Bash(find:*), Bash(lsof:*), Bash(kill:*), Read, Write, Glob, Grep, Task, TodoWrite
-description: Interactive PR review. Pulls a PR via gh, groups files into features (markdown descriptions), computes a suggested review sequence, and launches a local HTML UI with GitHub-style stacked diffs, inline commenting (click-and-drag multi-line), realtime posting via gh, and an AI **narrative layer** of "explain pills" — purple ✨ callouts that tell the story of the PR alongside the code, connecting each block to the broader change. Triggers on: review this pr, brief pr, pr review ui, narrate pr, annotate pr, interactive pr review.
+description: Interactive PR review. Pulls a PR via gh, groups files into features (markdown descriptions), computes a suggested review sequence, and launches a local HTML UI with GitHub-style stacked diffs, inline commenting (click-and-drag multi-line), realtime posting via gh, and two parallel AI narrative layers — purple ✨ "explain pills" that tell the story of the PR alongside the code, and red ⚠ "critique pills" with severity 1–5 that surface concerns and (optionally) suggested changes. Critique pills convert to inline GitHub comments on click. Triggers on: review this pr, brief pr, pr review ui, narrate pr, annotate pr, interactive pr review.
 ---
 
 # PR Brief
@@ -182,6 +182,52 @@ Instruct the agent to:
    }
    ```
 
+7. **Critique pills — the AI review layer.** This is the second narrative output. Where explain pills tell *what* the code does and *why*, critique pills tell *what's wrong with it* and *how to fix it*. They render as red ⚠ callouts in the same right-side track as explain pills, with a severity badge S1–S5. A user can click "Use as comment →" on any critique pill to open the inline editor pre-filled with the critique text (and a GitHub `suggestion` block when `suggested_change` is set), then edit and post.
+
+   **Calibration is everything.** The severity scale only works if it's used honestly:
+   - **S1 (nit)** — style, naming, minor readability. Reviewer might mention or might let pass.
+   - **S2 (suggestion)** — a cleaner approach exists, not a bug. Worth raising.
+   - **S3 (issue)** — real concern: subtle bug, missing edge case, technical debt that will bite. Reviewer would flag.
+   - **S4 (problem)** — a bug, security/perf concern, broken contract. Should block until addressed.
+   - **S5 (blocker)** — must-fix. Production-impacting bug, data-loss risk, security hole, breaks an API contract.
+
+   If everything is S5, nothing is. If everything is S1, you've added noise. Distribute honestly. A typical 50-file PR might have 0 S5s, 1–3 S4s, 5–10 S3s, more S1–S2s. **Skip critique entirely on files that are genuinely fine** — forced critiques are worse than no critiques.
+
+   **Per file: 0 to N critiques (no upper bound, but be selective).** Pick line ranges anchored to the actual problematic code. Same line-range rules as explain pills: coherent unit, avoid trivial 1-line spans unless that one line *is* the issue.
+
+   **Fields:**
+   - `title` — 4–8 words, plain text. Concrete. *Not* "Issue here" — *yes* "Race in cache invalidation".
+   - `body` — markdown. 1–4 short sentences. Lead with the issue, then the consequence, then a hint toward the fix.
+   - `severity` — integer 1–5.
+   - `start_line` / `end_line` / `side` — same semantics as explain pills.
+   - `suggested_change` — OPTIONAL raw text replacement for the line range. When the user clicks "Use as comment →", this gets wrapped in GitHub's ```` ```suggestion ```` block so submitting renders the inline accept-suggestion UI. If you can't propose a clean replacement, omit the field.
+
+   **Voice:**
+   - Direct, technical. No hedging. *"The lock is released before the write completes"* beats *"I think there might be an issue with locking"*.
+   - Don't moralize. State the concern, point to the fix.
+   - Cite the cause: *"race with `cache.invalidate` because…"*, *"fails if `user_id` is null because…"*.
+
+   **Anti-patterns to avoid:**
+   - ❌ **Severity inflation.** If everything is S4–S5, the review is unusable.
+   - ❌ Stylistic *"you should use map() instead of forEach"* without rationale. Drop unless there's a real perf/clarity gain.
+   - ❌ Critiques on lines outside the diff. Only critique what's actually changed.
+   - ❌ Vague critiques: *"could be cleaner"*. Either name the cleanup or skip the pill.
+   - ❌ Critiques that restate explain-pill content. Critiques are about *problems*; explanations are about *understanding*.
+
+   **Example of a good critique:**
+
+   ```json
+   {
+     "title": "Race in cache invalidation",
+     "body": "**`session_management.py`** clears the cache *before* `db.commit()`. A concurrent reader between the clear and the commit will repopulate stale data from the old transaction snapshot, defeating the invalidation.\n\nMove the `cache.delete()` call after the commit, or use a write-through cache.",
+     "severity": 4,
+     "start_line": 142,
+     "end_line": 147,
+     "side": "RIGHT",
+     "suggested_change": "        db.commit()\n        cache.delete(f\"ai:{phone_group_key}\")"
+   }
+   ```
+
 **Output:** Write `~/.claude/pr-review/pr-<num>/features.json` matching exactly this schema:
 
 ```json
@@ -204,6 +250,17 @@ Instruct the agent to:
               "start_line": 42,
               "end_line": 56,
               "side": "RIGHT"
+            }
+          ],
+          "critiques": [
+            {
+              "title": "Short critique title (plain text, 4-8 words)",
+              "body": "**Markdown** body. 1-4 short sentences: the concern, the consequence, the fix direction.",
+              "severity": 4,
+              "start_line": 142,
+              "end_line": 147,
+              "side": "RIGHT",
+              "suggested_change": "Optional raw text replacement for the line range"
             }
           ]
         }
@@ -246,11 +303,12 @@ Track `old_line` / `new_line` per file: context increments both; `+` increments 
 
 Binary / rename-only files: `lines: []`.
 
-**Resolve explanations:** for each explanation in a file's `explanations` array, look up its `start_position` and `end_position` from the parsed lines:
+**Resolve explanations and critiques:** for each entry in a file's `explanations` array AND each entry in its `critiques` array, look up its `start_position` and `end_position` from the parsed lines:
 - For `side: "RIGHT"`: find the line where `(type == "context" or type == "add") and new_line == target_line` — its `position` is what you want.
 - For `side: "LEFT"`: find the line where `(type == "context" or type == "del") and old_line == target_line`.
-- If a target line isn't found in the diff (e.g. agent picked an out-of-diff line), drop that explanation with a warning.
+- If a target line isn't found in the diff (e.g. agent picked an out-of-diff line), drop that entry with a warning.
 - Pass the augmented `explanations` array through to the file entry in data.json.
+- Pass the augmented `critiques` array through to the file entry in data.json (preserve `severity` and `suggested_change` as-is).
 - Pass the file-level `tldr` and `description` (from `features.json`) straight through to the file entry in data.json — the frontend renders them as a header card above each file's diff.
 
 **Final `data.json` shape:**
@@ -292,6 +350,19 @@ Binary / rename-only files: `lines: []`.
               "side": "RIGHT",
               "start_position": 5,
               "end_position": 18
+            }
+          ],
+          "critiques": [
+            {
+              "title": "Missing rollback path",
+              "body": "Forward migration writes both columns but `downgrade()` only drops `is_group`. If someone reverts, `group_jid` stays orphaned and the next replay collides on the unique index.",
+              "severity": 3,
+              "start_line": 60,
+              "end_line": 74,
+              "side": "RIGHT",
+              "suggested_change": "    op.drop_column('conversation_assignments', 'group_jid')\n    op.drop_column('conversation_assignments', 'is_group')",
+              "start_position": 22,
+              "end_position": 36
             }
           ]
         }
@@ -343,6 +414,8 @@ In the UI:
   • Click a feature → all its files render stacked, scroll through them top-to-bottom
   • Click "+" in the gutter → inline editor; click-and-drag the "+" or shift-click for multi-line
   • Save → posted to GitHub immediately (realtime); the badge flips Pending → Posted ✓ with link
+  • Purple ✨ pills (right side) explain the code; red ⚠ S1–S5 pills critique it
+  • "Use as comment →" on any critique pill → opens the editor pre-filled with the critique + GitHub suggestion block; edit and save like any other comment
   • "Viewed" checkbox per file (sticky, persists per PR)
   • If a post fails (network/auth), the comment stays local; "Retry N unposted" in the sidebar resends
 
@@ -361,6 +434,7 @@ These behaviors are part of the bundled `index.html` and `server.py`. **Do not r
 - **GitHub-style syntax highlighting.** `highlight.js` 11.9 with the `github-dark` stylesheet. Line prefix (` ` / `+` / `-`) is colored separately so add/del row tints stay correct.
 - **Markdown rendering of `full_description`.** Frontend uses `marked` (CDN). Bullet points, bold, inline code, and short paragraphs render as expected. The agent producing `features.json` MUST emit markdown for this field.
 - **Explain pills (AI narrative layer).** Each file's diff has a 400px right-side track. For every entry in `file.explanations`, a purple "✨" callout floats anchored to the **start** row of its range (`data-start-position`), measured via `getBoundingClientRect()` against the track. Pills auto-stack (sorted by start position) to avoid overlap. After layout, `track.style.minHeight` is set to `lastBottom + 16px` so pills near EOF are not clipped. Pills are collapsible (toggle button), the body is markdown-rendered through `marked` and resizable (CSS `resize: vertical`). Rows in the explanation's range get a left-border accent (`box-shadow: inset 3px 0 0 #bb80ff`). Pill content is **narrative-driven** — see step 6 of the agent task for the storytelling rules.
+- **Critique pills (AI review layer).** Each entry in `file.critiques` renders as a red "⚠" callout in the same right-side track as explain pills (sorted/stacked together by start position). The pill header includes a severity badge `S1`–`S5` with a yellow→red color gradient (S1 amber, S5 deep crimson). Body is markdown. If the critique includes `suggested_change`, the pill shows a green-bordered "Suggested change" code block underneath. A "Use as comment →" button at the bottom opens the inline comment editor at the critique's line range, pre-filled with `**title**\n\nbody\n\n```suggestion ... ```` (the GitHub suggestion block is included only when `suggested_change` is set). Rows in a critique's range get a red gutter accent; rows that are in BOTH an explain and critique range get a layered purple+red accent. The track is hidden (`data-no-pills="1"`) only when a file has neither explanations nor critiques.
 - **Inline comment editor (no modal).** Hover a line → blue `+` in the gutter → click expands an editor row directly below. Cmd/Ctrl+Enter saves, Esc cancels.
 - **Multi-line comments — three entry points:**
   1. **Click-and-drag** from the gutter `+` across lines (GitHub-native UX). Live blue band highlights the range.
@@ -398,6 +472,7 @@ All POST endpoints expect/emit JSON.
 - **`full_description` must be markdown.** `tldr` and `why_first` are plain text.
 - **Position counting is per-file and starts at 1.** Off-by-one = GitHub rejects the comment.
 - **Lockfiles** (`uv.lock`, `package-lock.json`, `yarn.lock`, `poetry.lock`, `Pipfile.lock`) collapse into a `build` or `deps` feature; `tldr` = "Auto-generated lockfile update — no manual review needed", `lines: []`.
+- **Critiques are optional, calibration is mandatory.** `critiques` may be an empty array. Severity inflation (everything is S4–S5) makes the review unusable; if you're tempted to mark everything blocker, downgrade. A clean file gets zero critiques, not a forced S1.
 - **Large PRs (>200 files):** if the opus agent's response is too big, fall back to directory-based grouping (top-level dir = feature) and note this in the report.
 - **Port conflict:** try 7681–7690; if all busy, tell the user.
 - **Force-push mid-session:** `gh api` returns 422 with stale SHA — tell the user to re-run the skill.
