@@ -429,6 +429,7 @@ Stop the server: lsof -ti:<port> | xargs kill
 These behaviors are part of the bundled `index.html` and `server.py`. **Do not regress** when modifying templates:
 
 - **Stacked files (no tabs).** When a feature is selected, every file in it is rendered top-to-bottom with its own collapsible header. Scroll through them in order.
+- **Collapsible feature summary.** The top-of-viewer summary card (tldr, full description, why_first, file count) has a "▼ Hide summary" button in its top-right corner. Click to collapse the card down to just the title row so the diff below gets the full vertical space; click "▶ Show summary" to expand. Collapsed state persists per `(repo, PR)` in `localStorage` (`pr-brief-summary-collapsed-<repo>-<num>`). The expanded description card is also independently resizable: it caps at `max-height: 220px` with `overflow: auto; resize: vertical;` so the user can drag its bottom-right grip to fine-tune without fully collapsing.
 - **Sticky sidebar buttons.** The Submit/Clear/Publish-briefs row is pinned at the bottom of the sidebar regardless of how long the feature list grows. (Flex `flex: 1; min-height: 0; overflow-y: auto` on `.feature-list`; `flex-shrink: 0` on `.pending-box`.)
 - **Per-file "Viewed" checkbox.** Persisted in `localStorage` keyed by `pr-brief-viewed-<repo>-<num>`. Marking a file viewed dims and collapses it.
 - **GitHub-style syntax highlighting.** `highlight.js` 11.9 with the `github-dark` stylesheet. Line prefix (` ` / `+` / `-`) is colored separately so add/del row tints stay correct.

@@ -116,9 +116,38 @@
     border-bottom: 1px solid var(--border);
     position: sticky; top: 0; z-index: 5;
   }
-  .feature-header .name { font-size: 18px; font-weight: 600; }
+  /* Collapse toggle — top-right corner. Click to hide everything except the title row
+     so the diff below has full vertical space. State is persisted across feature switches. */
+  .feature-collapse-toggle {
+    position: absolute; top: 12px; right: 24px;
+    background: var(--bg-raised); border: 1px solid var(--border);
+    color: var(--text-dim); padding: 4px 10px; font-size: 11px;
+    cursor: pointer; border-radius: 4px;
+    font-family: -apple-system, sans-serif;
+    z-index: 1;
+  }
+  .feature-collapse-toggle:hover { color: var(--text); border-color: var(--text-dim); }
+  .feature-header[data-collapsed="1"] { padding: 8px 24px; }
+  .feature-header[data-collapsed="1"] .tldr,
+  .feature-header[data-collapsed="1"] .desc,
+  .feature-header[data-collapsed="1"] .why,
+  .feature-header[data-collapsed="1"] .file-summary { display: none; }
+  .feature-header .name { font-size: 18px; font-weight: 600; padding-right: 110px; }
   .feature-header .tldr { color: var(--text-dim); margin-top: 6px; }
-  .feature-header .desc { margin-top: 10px; font-size: 13px; line-height: 1.6; max-width: 80ch; }
+  .feature-header .desc {
+    margin-top: 10px; font-size: 13px; line-height: 1.6; max-width: 80ch;
+    /* Inner resize lets you fine-tune the description height without fully
+       collapsing the panel. Drag the bottom-right grip to grow/shrink. */
+    max-height: 220px;
+    min-height: 36px;
+    overflow: auto;
+    resize: vertical;
+    padding-right: 12px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    transition: border-color 0.15s ease;
+  }
+  .feature-header .desc:hover { border-color: var(--border); }
   .feature-header .desc p { margin: 6px 0; }
   .feature-header .desc p:first-child { margin-top: 0; }
   .feature-header .desc p:last-child { margin-bottom: 0; }
@@ -578,6 +607,20 @@ const STORAGE_KEY = () => `pr-brief-pending-${CONTEXT?.repo}-${CONTEXT?.pr}`;
 const VIEWED_KEY = () => `pr-brief-viewed-${CONTEXT?.repo}-${CONTEXT?.pr}`;
 const MODE_KEY = () => `pr-brief-mode-${CONTEXT?.repo}-${CONTEXT?.pr}`;
 
+// Summary collapsed state — one bit per (repo, pr), persisted across feature switches
+// so "I want code visible" stays sticky.
+function summaryCollapsedKey() {
+  return `pr-brief-summary-collapsed-${CONTEXT?.repo}-${CONTEXT?.pr}`;
+}
+function loadSummaryCollapsed() {
+  try { return localStorage.getItem(summaryCollapsedKey()) === "1"; }
+  catch { return false; }
+}
+function saveSummaryCollapsed(v) {
+  try { localStorage.setItem(summaryCollapsedKey(), v ? "1" : "0"); }
+  catch {}
+}
+
 function loadViewed() {
   try { VIEWED = new Set(JSON.parse(localStorage.getItem(VIEWED_KEY()) || "[]")); } catch { VIEWED = new Set(); }
 }
@@ -626,6 +669,18 @@ function loadPending() {
 function sideForType(type) { return type === "del" ? "LEFT" : "RIGHT"; }
 function lineNumForLine(line) {
   return line.type === "del" ? line.old_line : line.new_line;
+}
+
+// Resolve a file path to its rendered .diff-wrap element. We can't use a CSS
+// attribute selector like `[data-file-path="${path}"]` because the attribute
+// is HTML-escaped on render (e.g. & → &amp;) while the JS `path` is raw.
+// Iterating and comparing `dataset.filePath` decodes entities consistently.
+function findWrapByPath(path) {
+  const wraps = document.querySelectorAll(".diff-wrap");
+  for (const w of wraps) {
+    if (w.dataset.filePath === path) return w;
+  }
+  return null;
 }
 
 function findFileByPath(path) {
@@ -753,8 +808,12 @@ function renderViewer() {
   }
   const feat = DATA.features[ACTIVE_FEATURE];
 
+  const summaryCollapsed = loadSummaryCollapsed();
   viewer.innerHTML = `
-    <div class="feature-header">
+    <div class="feature-header"${summaryCollapsed ? ' data-collapsed="1"' : ""}>
+      <button class="feature-collapse-toggle" title="Hide / show the feature summary">
+        ${summaryCollapsed ? "▶ Show summary" : "▼ Hide summary"}
+      </button>
       <div class="name">${escape(ACTIVE_FEATURE)}
         <span class="badge">${feat.blast_radius || "low"} blast</span>
       </div>
@@ -1059,6 +1118,20 @@ function setupViewerDelegation() {
       return;
     }
 
+    // Collapse/expand the feature summary card at the top of the viewer
+    const summaryToggle = e.target.closest(".feature-collapse-toggle");
+    if (summaryToggle) {
+      const header = summaryToggle.closest(".feature-header");
+      const collapsed = header.dataset.collapsed === "1";
+      if (collapsed) header.removeAttribute("data-collapsed");
+      else header.dataset.collapsed = "1";
+      const nowCollapsed = !collapsed;
+      summaryToggle.textContent = nowCollapsed ? "▶ Show summary" : "▼ Hide summary";
+      saveSummaryCollapsed(nowCollapsed);
+      requestAnimationFrame(() => layoutAllExplainPills());
+      return;
+    }
+
     // Collapse/expand a file
     const collapseBtn = e.target.closest(".file-collapse-toggle");
     if (collapseBtn) {
@@ -1165,7 +1238,7 @@ function clearDragRange() {
 function rerenderFileBlock(path) {
   const file = findFileByPath(path);
   if (!file) return;
-  const wrap = document.querySelector(`.diff-wrap[data-file-path="${path.replace(/"/g, '\\"')}"]`);
+  const wrap = findWrapByPath(path);
   if (!wrap) return;
   const tpl = document.createElement("template");
   tpl.innerHTML = renderFileBlock(file).trim();
@@ -1202,21 +1275,27 @@ function renderThreadRow(path, c) {
 
 function openInlineEditor(path, endInfo, startInfo, initialBody = "") {
   const endPos = endInfo.position;
-  // Ensure only one editor per end position
-  const existing = document.querySelector(
+  // Scope all DOM lookups to THIS file's wrap. Without this, every stacked
+  // file has rows at position 1,2,3,... so `document.querySelector(...)` would
+  // return the first match in document order — usually a different file —
+  // and the editor would silently open way up the page, invisible to the user
+  // who just clicked "+" in the file currently in view.
+  const wrap = findWrapByPath(path);
+  if (!wrap) return;
+
+  const existing = wrap.querySelector(
     `.comment-editor-row[data-editor-position="${endPos}"]`
   );
   if (existing) {
     existing.querySelector("textarea").focus();
     return;
   }
-  // Remove any saved thread row for this end position while editing
-  const threadRow = document.querySelector(
+  const threadRow = wrap.querySelector(
     `.comment-thread-row[data-thread-position="${endPos}"]`
   );
   if (threadRow) threadRow.remove();
 
-  const targetRow = document.querySelector(
+  const targetRow = wrap.querySelector(
     `tr.comment-target[data-position="${endPos}"]`
   );
   if (!targetRow) return;
