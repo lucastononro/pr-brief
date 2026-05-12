@@ -378,22 +378,27 @@ Write to `~/.claude/pr-review/pr-<num>/data.json`.
 
 The browser UI ships with an inline "Chat about this" feature (right-click any selected diff snippet → mini chat panel on the right). The chat backend `claude --resume`s **this very session** — so when a reviewer asks "what does this do?" inside the UI, the resumed agent already has all of the PR context that was just loaded to author the brief.
 
-Right before launching the server, capture the active session id by finding the most-recently-modified jsonl under `~/.claude/projects/` (Claude Code writes to it on every turn, so the newest one **is** this session) and write it next to `data.json`:
+Right before launching the server, capture the active session id by finding the most-recently-modified jsonl **for this project specifically** (Claude Code writes to it on every turn, so the newest one in the project's own dir is this session). The session id must come from the project dir that matches `cwd` — `claude --resume <id>` looks the id up scoped to whichever project the resume runs in, so a session id from a different project will resume with "No conversation found".
+
+Claude Code encodes the project dir as the absolute `cwd` with `/` replaced by `-` (so `/Users/me/code/foo` lives at `~/.claude/projects/-Users-me-code-foo/`).
 
 ```bash
 python3 - <<'PY'
 import os, json, glob
 home = os.path.expanduser('~')
-files = sorted(glob.glob(f'{home}/.claude/projects/*/*.jsonl'), key=os.path.getmtime, reverse=True)
+cwd = os.getcwd()
+encoded = cwd.replace('/', '-')  # /Users/me/code/foo -> -Users-me-code-foo
+proj_dir = f'{home}/.claude/projects/{encoded}'
+files = sorted(glob.glob(f'{proj_dir}/*.jsonl'), key=os.path.getmtime, reverse=True)
 sid = os.path.basename(files[0])[:-6] if files else None
 out = os.path.expanduser('~/.claude/pr-review/pr-<num>/session.json')
 with open(out, 'w') as f:
-    json.dump({'session_id': sid, 'cwd': os.getcwd()}, f)
-print('captured' if sid else 'no session found — chat will be disabled')
+    json.dump({'session_id': sid, 'cwd': cwd}, f)
+print('captured' if sid else f'no session found under {proj_dir} — chat will be disabled')
 PY
 ```
 
-If the capture fails (empty `projects/` dir, permissions, etc.) the rest of the skill continues to work normally; the chat panel just stays hidden in the UI.
+If the capture fails (empty/missing project dir, unusual cwd-to-project-dir encoding, permissions) the rest of the skill continues to work normally; the chat panel just stays hidden in the UI.
 
 ### 5. Copy templates + launch
 
