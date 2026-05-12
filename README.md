@@ -20,11 +20,6 @@ What reviewers get:
 
 [![Watch the demo](https://img.youtube.com/vi/9d9u7UEAgLU/maxresdefault.jpg)](https://youtu.be/9d9u7UEAgLU)
 
-<!-- TODO before HN launch: add a still screenshot of the UI on a real public PR.
-     Suggested filename: docs/screenshot-explain-pills.png
-     Caption: "Reviewing PR #N of <public-repo> — explain pills (purple) anchor the narrative
-     to the diff." -->
-
 ---
 
 ## Why this exists
@@ -34,8 +29,6 @@ Three reasons:
 1. I had to review ginormous PRs and I couldn't afford asking folks to break their PRs and stack them.
 2. Reviewing PRs is somewhat of finding needles in a haystack — with this I can know the right sequence to look.
 3. Reading code isn't always straightforward; you have to connect the dots between files mentally. This facilitates it.
-
-> _If you want to reword any of the three above before the HN launch, do it by hand — keep the voice intentionally informal, no LLM polish._
 
 ---
 
