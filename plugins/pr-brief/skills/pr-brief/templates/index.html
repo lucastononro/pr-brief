@@ -553,6 +553,177 @@
   .toast.bad { border-color: var(--danger); }
   .empty { padding: 40px; text-align: center; color: var(--text-dim); }
   .badge { display: inline-block; padding: 1px 6px; border-radius: 10px; font-size: 10px; background: var(--border); margin-left: 6px; }
+
+  /* --- inline "Chat about this" --- */
+
+  /* Right-click menu (one item: "Chat about <path>:<range>") */
+  .ctx-menu {
+    position: fixed; z-index: 300;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+    min-width: 220px;
+    font-size: 12.5px;
+  }
+  .ctx-menu button {
+    width: 100%; display: block; text-align: left;
+    padding: 7px 14px; background: transparent; border: none;
+    color: var(--text); font: inherit; cursor: pointer;
+    border-radius: 0;
+  }
+  .ctx-menu button:hover { background: var(--bg-hover); }
+  .ctx-menu code {
+    background: var(--bg); padding: 0 4px; border-radius: 3px;
+    font: 11px ui-monospace, SFMono-Regular, monospace; color: var(--accent);
+  }
+
+  /* Right-side chat drawer */
+  .chat-drawer {
+    position: fixed; top: 49px; right: 0;
+    width: 440px; height: calc(100vh - 49px);
+    background: var(--bg-raised);
+    border-left: 1px solid var(--border);
+    z-index: 90;
+    display: none;
+    flex-direction: column;
+    box-shadow: -6px 0 18px rgba(0,0,0,0.35);
+  }
+  .chat-drawer[data-open="1"] { display: flex; }
+  .chat-drawer .chat-head {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg);
+  }
+  .chat-drawer .chat-head .title { font-weight: 600; font-size: 13px; }
+  .chat-drawer .chat-head .session-id {
+    font: 10px ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-dim);
+  }
+  .chat-drawer .chat-head .spacer { flex: 1; }
+  .chat-drawer .chat-head .close-btn {
+    background: transparent; border: none; color: var(--text-dim);
+    font-size: 16px; cursor: pointer; padding: 2px 8px; border-radius: 4px;
+  }
+  .chat-drawer .chat-head .close-btn:hover { color: var(--text); background: var(--bg-hover); }
+  .chat-drawer .chat-empty {
+    margin: auto; padding: 32px 24px;
+    color: var(--text-dim); font-size: 12.5px; text-align: center;
+    line-height: 1.6;
+  }
+  .chat-drawer .panels {
+    flex: 1; overflow-y: auto; padding: 10px;
+  }
+  .chat-panel {
+    margin-bottom: 14px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); overflow: hidden;
+  }
+  .chat-panel .panel-head {
+    padding: 6px 10px;
+    background: var(--bg-raised); border-bottom: 1px solid var(--border);
+    font: 11px ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .chat-panel .panel-head .panel-range { color: var(--accent); }
+  .chat-panel .panel-head .close {
+    background: transparent; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 13px; margin-left: auto; padding: 0 4px;
+  }
+  .chat-panel .panel-head .close:hover { color: var(--text); }
+  .chat-panel .snippet-preview {
+    padding: 6px 10px;
+    background: var(--bg);
+    border-bottom: 1px dashed var(--border);
+    font: 11px/1.4 ui-monospace, SFMono-Regular, monospace;
+    color: var(--text-dim);
+    max-height: 90px; overflow: auto;
+    white-space: pre;
+  }
+  .chat-panel .transcript {
+    padding: 10px;
+    max-height: 50vh; overflow-y: auto;
+    font-size: 12.5px;
+  }
+  .chat-bubble {
+    margin: 6px 0; padding: 7px 10px; border-radius: 6px;
+    word-wrap: break-word;
+  }
+  .chat-bubble.user {
+    background: rgba(88,166,255,0.10);
+    border: 1px solid rgba(88,166,255,0.25);
+    white-space: pre-wrap;
+  }
+  .chat-bubble.assistant {
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    line-height: 1.55;
+  }
+  .chat-bubble.assistant p { margin: 4px 0; }
+  .chat-bubble.assistant p:first-child { margin-top: 0; }
+  .chat-bubble.assistant p:last-child { margin-bottom: 0; }
+  .chat-bubble.assistant ul, .chat-bubble.assistant ol { margin: 4px 0; padding-left: 20px; }
+  .chat-bubble.assistant code {
+    background: var(--bg); padding: 1px 5px; border-radius: 3px;
+    font: 11px ui-monospace, SFMono-Regular, monospace; color: #ff7b72;
+  }
+  .chat-bubble.assistant pre {
+    background: var(--bg); padding: 8px; border-radius: 4px;
+    overflow-x: auto; font-size: 11px;
+  }
+  .chat-bubble.assistant pre code {
+    background: transparent; padding: 0; color: var(--text);
+  }
+  .chat-bubble.assistant strong { color: var(--text); }
+  .chat-bubble.assistant.empty::after {
+    content: "▍"; color: var(--text-dim);
+    animation: chat-blink 1s steps(2) infinite;
+  }
+  @keyframes chat-blink { 50% { opacity: 0; } }
+  .chat-tool-chip {
+    display: inline-block; padding: 1px 8px; margin: 4px 0;
+    background: var(--bg); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 10px;
+    font: 10.5px ui-monospace, SFMono-Regular, monospace;
+  }
+  .chat-error {
+    margin: 6px 0; padding: 7px 10px; border-radius: 6px;
+    background: rgba(248,81,73,0.10);
+    border: 1px solid rgba(248,81,73,0.35);
+    color: #ff7b72; font-size: 12px;
+  }
+  .chat-input-row {
+    padding: 8px 10px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 6px;
+    background: var(--bg-raised);
+  }
+  .chat-input-row textarea {
+    width: 100%; min-height: 48px; max-height: 200px;
+    resize: vertical; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 6px 8px;
+    font: 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    outline: none;
+  }
+  .chat-input-row textarea:focus { border-color: var(--accent); }
+  .chat-input-row textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+  .chat-input-row .controls {
+    display: flex; gap: 6px; align-items: center; justify-content: flex-end;
+  }
+  .chat-input-row .controls .streaming-hint {
+    font-size: 10.5px; color: var(--text-dim); font-style: italic;
+    margin-right: auto;
+  }
+  .chat-input-row .controls .send {
+    background: #238636; border-color: #238636; color: white;
+    padding: 4px 14px; font-size: 12px; border-radius: 4px;
+  }
+  .chat-input-row .controls .send:hover:not(:disabled) { background: #2ea043; }
+  .chat-input-row .controls .stop {
+    color: var(--danger); padding: 4px 12px; font-size: 12px; border-radius: 4px;
+  }
 </style>
 </head>
 <body>
@@ -591,6 +762,20 @@
   </section>
 </main>
 
+<!-- Custom right-click context menu for "Chat about <snippet>" -->
+<div class="ctx-menu" id="chat-ctx-menu" style="display:none"></div>
+
+<!-- Right-side chat drawer (hidden until first "Chat about this" invocation) -->
+<aside class="chat-drawer" id="chat-drawer">
+  <div class="chat-head">
+    <div class="title">Chat about code</div>
+    <div class="session-id" id="chat-session-id"></div>
+    <div class="spacer"></div>
+    <button class="close-btn" id="chat-close-btn" title="Close chat drawer">✕</button>
+  </div>
+  <div class="panels" id="chat-panels"></div>
+</aside>
+
 <div id="toast-root"></div>
 
 <script>
@@ -602,6 +787,11 @@ let VIEWED = new Set();  // paths marked "Viewed"
 let COMMENT_ANCHOR = null;  // {path, position, line, side, type} — last-clicked "+" for shift-click range
 let DRAG_STATE = null;      // active click-and-drag from gutter
 let MODE = "realtime";      // "realtime" (POST per save) | "batch" (queue, post as one review)
+let CHAT_ENABLED = false;
+let CHAT_SESSION_ID = null;
+let CHAT_PANELS = [];       // [{id, snippet, transcript, firstSent, streaming}]
+let CHAT_NEXT_ID = 1;
+let CHAT_STREAM_ABORT = null;  // AbortController for the in-flight chat fetch
 
 const STORAGE_KEY = () => `pr-brief-pending-${CONTEXT?.repo}-${CONTEXT?.pr}`;
 const VIEWED_KEY = () => `pr-brief-viewed-${CONTEXT?.repo}-${CONTEXT?.pr}`;
@@ -742,6 +932,7 @@ async function init() {
   renderPending();
   setupViewerDelegation();
   checkAuth();
+  checkChat();
 }
 
 function renderHeader() {
@@ -1690,6 +1881,357 @@ function renderLineContent(line, lang) {
     body = escape(rest);
   }
   return `<span class="diff-prefix">${escape(prefix)}</span>${body}`;
+}
+
+// ---------------------------------------------------------------------------
+// Inline chat: right-click a selected diff snippet → drawer panel that resumes
+// the same Claude Code session that authored the brief. All panels share one
+// session (claude --resume <id>) so context accumulates across snippets.
+// ---------------------------------------------------------------------------
+
+async function checkChat() {
+  try {
+    const res = await fetch("/api/chat-context");
+    const data = await res.json();
+    CHAT_ENABLED = !!data.enabled;
+    CHAT_SESSION_ID = data.session_id || null;
+    const sidEl = document.getElementById("chat-session-id");
+    if (sidEl) sidEl.textContent = CHAT_ENABLED && CHAT_SESSION_ID ? CHAT_SESSION_ID.slice(0, 8) + "…" : "";
+  } catch {
+    CHAT_ENABLED = false;
+  }
+  if (CHAT_ENABLED) setupChatContextMenu();
+  // Wire close button regardless — it's a no-op when drawer is closed.
+  const closeBtn = document.getElementById("chat-close-btn");
+  if (closeBtn) closeBtn.onclick = () => {
+    document.getElementById("chat-drawer").removeAttribute("data-open");
+  };
+}
+
+function setupChatContextMenu() {
+  const viewer = document.getElementById("viewer");
+  const menu = document.getElementById("chat-ctx-menu");
+
+  viewer.addEventListener("contextmenu", (e) => {
+    const sel = window.getSelection();
+    const text = sel ? sel.toString() : "";
+    if (!text || !text.trim()) return;
+    const wrap = e.target.closest(".diff-wrap");
+    if (!wrap) return;
+    // Selection anchor must be inside this wrap
+    const anchor = sel.anchorNode;
+    const anchorEl = anchor && (anchor.nodeType === 1 ? anchor : anchor.parentNode);
+    if (!anchorEl || !wrap.contains(anchorEl)) return;
+    const snippet = collectSnippetFromSelection(wrap, sel);
+    if (!snippet) return;
+    e.preventDefault();
+    openCtxMenu(e.clientX, e.clientY, snippet);
+  });
+
+  // Click outside or Esc dismisses the menu.
+  document.addEventListener("mousedown", (e) => {
+    if (!menu.contains(e.target)) menu.style.display = "none";
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") menu.style.display = "none";
+  });
+  window.addEventListener("scroll", () => { menu.style.display = "none"; }, true);
+}
+
+function collectSnippetFromSelection(wrap, sel) {
+  const range = sel.getRangeAt(0);
+  const trs = wrap.querySelectorAll("tr.comment-target");
+  const selected = [];
+  for (const tr of trs) {
+    if (range.intersectsNode(tr)) selected.push(tr);
+  }
+  if (!selected.length) return null;
+  const items = selected
+    .map(tr => {
+      const ln = parseInt(tr.dataset.line, 10);
+      const text = tr.querySelector(".line-content")?.textContent || "";
+      // Strip leading +/-/space prefix that lives in the rendered line
+      const stripped = text.replace(/^[+\- ]/, "");
+      return { line: ln, side: tr.dataset.side || "RIGHT", text: stripped };
+    })
+    .filter(x => !isNaN(x.line));
+  if (!items.length) return null;
+  const startLine = Math.min(...items.map(i => i.line));
+  const endLine = Math.max(...items.map(i => i.line));
+  return {
+    path: wrap.dataset.filePath,
+    start_line: startLine,
+    end_line: endLine,
+    side: items[0].side,
+    code: items.map(i => i.text).join("\n"),
+  };
+}
+
+function openCtxMenu(x, y, snippet) {
+  const menu = document.getElementById("chat-ctx-menu");
+  const range = snippet.start_line === snippet.end_line
+    ? `${snippet.start_line}`
+    : `${snippet.start_line}-${snippet.end_line}`;
+  menu.innerHTML = `<button id="ctx-chat-about">💬 Chat about <code>${escape(snippet.path)}:${range}</code></button>`;
+  menu.style.display = "block";
+  menu.style.left = Math.max(4, x) + "px";
+  menu.style.top = Math.max(4, y) + "px";
+  // Nudge inside viewport once laid out
+  requestAnimationFrame(() => {
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth - 8) menu.style.left = (window.innerWidth - r.width - 8) + "px";
+    if (r.bottom > window.innerHeight - 8) menu.style.top = (window.innerHeight - r.height - 8) + "px";
+  });
+  document.getElementById("ctx-chat-about").onclick = (e) => {
+    e.stopPropagation();
+    menu.style.display = "none";
+    openChatPanel(snippet);
+  };
+}
+
+function openChatPanel(snippet) {
+  const drawer = document.getElementById("chat-drawer");
+  drawer.dataset.open = "1";
+  const panel = {
+    id: `chat-panel-${CHAT_NEXT_ID++}`,
+    snippet,
+    transcript: [],
+    firstSent: false,
+    streaming: false,
+  };
+  CHAT_PANELS.push(panel);
+  renderChatPanels();
+  requestAnimationFrame(() => {
+    const el = document.getElementById(panel.id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "end" });
+      el.querySelector("textarea")?.focus();
+    }
+  });
+}
+
+function renderChatPanels() {
+  const container = document.getElementById("chat-panels");
+  if (!CHAT_PANELS.length) {
+    container.innerHTML = `<div class="chat-empty">Right-click any selected text inside a diff and pick <b>“Chat about this”</b> to start a panel here.</div>`;
+    return;
+  }
+  container.innerHTML = CHAT_PANELS.map(p => renderChatPanel(p)).join("");
+  // Wire up per-panel controls — replace the bare innerHTML with handlers.
+  for (const p of CHAT_PANELS) {
+    const el = document.getElementById(p.id);
+    if (!el) continue;
+    el.querySelector(".close").onclick = () => closeChatPanel(p);
+    const ta = el.querySelector("textarea");
+    const sendBtn = el.querySelector(".send");
+    if (sendBtn) sendBtn.onclick = () => sendChatTurn(p);
+    if (ta) {
+      ta.addEventListener("keydown", (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+          e.preventDefault();
+          sendBtn?.click();
+        }
+      });
+      // Auto-resize as user types
+      ta.addEventListener("input", () => {
+        ta.style.height = "auto";
+        ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+      });
+    }
+    const stopBtn = el.querySelector(".stop");
+    if (stopBtn) stopBtn.onclick = () => cancelChatStream(p);
+    // Keep the transcript scrolled to the bottom while streaming
+    const transcript = el.querySelector(".transcript");
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  }
+}
+
+function renderChatPanel(p) {
+  const s = p.snippet;
+  const range = s.start_line === s.end_line ? `L${s.start_line}` : `L${s.start_line}-${s.end_line}`;
+  const transcriptHtml = p.transcript.map(m => {
+    if (m.role === "user") {
+      return `<div class="chat-bubble user">${escape(m.text)}</div>`;
+    }
+    if (m.role === "assistant") {
+      const empty = !m.text;
+      return `<div class="chat-bubble assistant${empty ? " empty" : ""}">${renderMarkdown(m.text || "")}</div>`;
+    }
+    if (m.role === "tool") {
+      return `<div class="chat-tool-chip" title="${escape(m.input || "")}">✱ ${escape(m.tool || "tool")}</div>`;
+    }
+    if (m.role === "error") {
+      return `<div class="chat-error">${escape(m.text || "error")}</div>`;
+    }
+    return "";
+  }).join("");
+  const placeholder = p.firstSent ? "Follow up…" : "Ask about this snippet…";
+  return `
+    <div class="chat-panel" id="${p.id}">
+      <div class="panel-head">
+        <span class="panel-range">${escape(s.path)}:${range}</span>
+        <button class="close" title="Close panel">✕</button>
+      </div>
+      <div class="snippet-preview">${escape(s.code)}</div>
+      <div class="transcript">${transcriptHtml}</div>
+      <div class="chat-input-row">
+        <textarea placeholder="${placeholder}" ${p.streaming ? "disabled" : ""}></textarea>
+        <div class="controls">
+          ${p.streaming ? `<span class="streaming-hint">streaming…</span>` : ""}
+          ${p.streaming ? `<button class="stop">Stop</button>` : ""}
+          <button class="send" ${p.streaming ? "disabled" : ""}>Send</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeChatPanel(panel) {
+  if (panel.streaming) cancelChatStream(panel);
+  CHAT_PANELS = CHAT_PANELS.filter(x => x !== panel);
+  renderChatPanels();
+}
+
+async function sendChatTurn(panel) {
+  const el = document.getElementById(panel.id);
+  if (!el) return;
+  const textarea = el.querySelector("textarea");
+  const message = (textarea?.value || "").trim();
+  if (!message || panel.streaming) return;
+
+  panel.transcript.push({ role: "user", text: message });
+  panel.transcript.push({ role: "assistant", text: "" });
+  panel.streaming = true;
+  if (textarea) textarea.value = "";
+  const payload = { message };
+  if (!panel.firstSent) {
+    payload.snippet = panel.snippet;
+    panel.firstSent = true;
+  }
+  renderChatPanels();
+
+  const controller = new AbortController();
+  CHAT_STREAM_ABORT = controller;
+  try {
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let err = "";
+      try { err = (await res.json()).error || ""; } catch {}
+      panel.transcript.push({ role: "error", text: `HTTP ${res.status} ${err}` });
+      panel.streaming = false;
+      renderChatPanels();
+      return;
+    }
+    if (!res.body) {
+      panel.transcript.push({ role: "error", text: "no response body (browser doesn't support stream)" });
+      panel.streaming = false;
+      renderChatPanels();
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let pending = false;
+    const flush = () => { pending = false; renderChatPanels(); };
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const ev = JSON.parse(line);
+          applyChatEvent(panel, ev);
+        } catch {
+          // Ignore malformed lines
+        }
+      }
+      // Coalesce renders — at most one per animation frame.
+      if (!pending) {
+        pending = true;
+        requestAnimationFrame(flush);
+      }
+    }
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      panel.transcript.push({ role: "error", text: `stream error: ${e.message}` });
+    }
+  } finally {
+    panel.streaming = false;
+    CHAT_STREAM_ABORT = null;
+    renderChatPanels();
+  }
+}
+
+function applyChatEvent(panel, ev) {
+  // Stream-json shapes Claude Code emits (varying by version):
+  //   {type: "system", subtype: "init", ...}
+  //   {type: "assistant", message: {content: [{type: "text"|"tool_use", ...}]}}
+  //   {type: "user", message: {content: [{type: "tool_result", ...}]}}
+  //   {type: "result", ...}
+  //   {type: "stream_event", event: {type: "content_block_delta", delta: {type: "text_delta", text: "..."}}}
+  // Plus our server-injected: {type: "chat_started"|"chat_done"|"error"|"raw"}
+  if (!ev || typeof ev !== "object") return;
+
+  if (ev.type === "error") {
+    panel.transcript.push({ role: "error", text: ev.message || "error" });
+    return;
+  }
+  if (ev.type === "chat_started" || ev.type === "chat_done" || ev.type === "system" || ev.type === "result") {
+    return;
+  }
+  if (ev.type === "stream_event" && ev.event && ev.event.type === "content_block_delta") {
+    const d = ev.event.delta;
+    if (d && d.type === "text_delta" && d.text) appendAssistantText(panel, d.text);
+    return;
+  }
+  if (ev.type === "assistant" && ev.message && Array.isArray(ev.message.content)) {
+    for (const c of ev.message.content) {
+      if (c.type === "text" && c.text) {
+        appendAssistantText(panel, c.text);
+      } else if (c.type === "tool_use") {
+        let inputStr = "";
+        try { inputStr = JSON.stringify(c.input).slice(0, 200); } catch {}
+        panel.transcript.push({ role: "tool", tool: c.name || "tool", input: inputStr });
+      }
+    }
+    return;
+  }
+  if (ev.type === "raw" && ev.text) {
+    // Server couldn't parse a line — show it dim so the user knows something's up.
+    appendAssistantText(panel, ev.text);
+  }
+}
+
+function appendAssistantText(panel, text) {
+  // Append to the current trailing assistant bubble, or open a new one if the
+  // last event was a tool chip.
+  let last = panel.transcript[panel.transcript.length - 1];
+  if (!last || last.role !== "assistant") {
+    panel.transcript.push({ role: "assistant", text: "" });
+    last = panel.transcript[panel.transcript.length - 1];
+  }
+  last.text = (last.text || "") + text;
+}
+
+function cancelChatStream(panel) {
+  if (CHAT_STREAM_ABORT) {
+    try { CHAT_STREAM_ABORT.abort(); } catch {}
+  }
+  fetch("/api/chat-cancel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  }).catch(() => {});
+  panel.streaming = false;
+  renderChatPanels();
 }
 
 init();
