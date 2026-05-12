@@ -374,6 +374,27 @@ Binary / rename-only files: `lines: []`.
 
 Write to `~/.claude/pr-review/pr-<num>/data.json`.
 
+### 4.5. Capture the current Claude Code session id
+
+The browser UI ships with an inline "Chat about this" feature (right-click any selected diff snippet → mini chat panel on the right). The chat backend `claude --resume`s **this very session** — so when a reviewer asks "what does this do?" inside the UI, the resumed agent already has all of the PR context that was just loaded to author the brief.
+
+Right before launching the server, capture the active session id by finding the most-recently-modified jsonl under `~/.claude/projects/` (Claude Code writes to it on every turn, so the newest one **is** this session) and write it next to `data.json`:
+
+```bash
+python3 - <<'PY'
+import os, json, glob
+home = os.path.expanduser('~')
+files = sorted(glob.glob(f'{home}/.claude/projects/*/*.jsonl'), key=os.path.getmtime, reverse=True)
+sid = os.path.basename(files[0])[:-6] if files else None
+out = os.path.expanduser('~/.claude/pr-review/pr-<num>/session.json')
+with open(out, 'w') as f:
+    json.dump({'session_id': sid, 'cwd': os.getcwd()}, f)
+print('captured' if sid else 'no session found — chat will be disabled')
+PY
+```
+
+If the capture fails (empty `projects/` dir, permissions, etc.) the rest of the skill continues to work normally; the chat panel just stays hidden in the UI.
+
 ### 5. Copy templates + launch
 
 The skill ships `index.html` and `server.py` under its own `templates/` directory. The skill's location depends on how it was installed — standalone (`~/.claude/skills/pr-brief/`) or as a plugin (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills/pr-brief/`). Resolve the templates directory at runtime with `find`, then copy the files into the PR output dir each run (so improvements to the templates propagate):
@@ -389,7 +410,11 @@ Pick a free port. Default 7681; if `lsof -i:7681` is busy, try 7682, 7683, ... u
 
 ```bash
 cd ~/.claude/pr-review/pr-<num>
-python3 server.py --port <port> --pr <num> --repo <owner>/<repo> --sha <head_sha> &
+# Pull the captured session id (if any) so the server can wire the inline-chat backend.
+SID=$(python3 -c "import json,os,sys; p=os.path.expanduser('~/.claude/pr-review/pr-<num>/session.json'); print(json.load(open(p)).get('session_id') or '' if os.path.exists(p) else '')")
+SCWD=$(python3 -c "import json,os,sys; p=os.path.expanduser('~/.claude/pr-review/pr-<num>/session.json'); print(json.load(open(p)).get('cwd') or '' if os.path.exists(p) else '')")
+python3 server.py --port <port> --pr <num> --repo <owner>/<repo> --sha <head_sha> \
+  ${SID:+--session-id "$SID"} ${SCWD:+--session-cwd "$SCWD"} &
 ```
 
 Background the server, then open the browser:
@@ -445,6 +470,8 @@ These behaviors are part of the bundled `index.html` and `server.py`. **Do not r
 - **Server-side throttle.** All write endpoints (`/api/post-comment`, `/api/submit-review`, `/api/post-briefs`) gate behind a 1.5s minimum gap (per GitHub's "≥1s between writes" guidance) via a single threading lock — even with concurrent saves, the actual `gh` calls are serialized.
 - **Secondary rate-limit detection.** If `gh` returns "secondary rate limit" output, the server replies HTTP 429 with `{ok:false, rate_limited:true, retry_after_seconds:60, hint}`. The frontend detects this, shows a "Rate limited — switching to Batch" toast, and auto-flips MODE to `batch`.
 - **Submit button.** Disabled when nothing is unposted. Label depends on MODE: Realtime → `Retry N unposted` / `All posted`; Batch → `Submit N as one review` / `All posted`.
+- **Inline "Chat about this".** Select any text inside a diff, right-click → "Chat about `<path>:<start>-<end>`" → a chat panel pops on the right (440px drawer). Each panel is a multi-turn conversation about that snippet; the panel's first message includes a short Markdown preamble naming the file + line range + the selected code, follow-ups send the user's text verbatim. **All panels — across files, across reloads — share the same Claude Code session via `claude --resume`** (the session id captured in step 4.5). That session is the one that authored this PR's brief, so it already has the diff and feature plan in context. The drawer is hidden entirely when `/api/chat-context` reports `enabled: false` (no session id captured) — the right-click menu never appears, so the feature gracefully no-ops on standalone installs that haven't run step 4.5.
+- **Chat streaming.** Each chat turn is a `POST /api/chat` whose response body is line-delimited JSON (stream-json format from `claude --output-format=stream-json --verbose`). The browser uses `fetch` + `ReadableStream` to parse events as they arrive: `assistant` events append text deltas to the current bubble; `tool_use` events render as a gray "✱ ran X" chip; `error` events surface inline. A "Stop" button while streaming POSTs `/api/chat-cancel` which SIGTERMs the in-flight `claude` subprocess. Only one chat turn can be in flight at a time (a server-side lock serializes calls); the Send button is disabled until the previous stream finishes.
 
 ---
 
@@ -459,8 +486,11 @@ Stdlib-only Python `http.server`:
 - `POST /api/post-comment` (**realtime path**) → body `{path, body, line, side, start_line?, start_side?}` → throttle 1.5s → `gh api repos/<repo>/pulls/<pr>/comments` → returns `{ok, url, id}`. On secondary rate limit returns 429 with `{ok:false, rate_limited:true, retry_after_seconds, hint}`.
 - `POST /api/submit-review` (**batch path**) → body `{comments: [...], summary}` → throttle 1.5s → `gh api repos/<repo>/pulls/<pr>/reviews` (event=COMMENT) → returns `{ok, url, id, count}`. Used by Batch-mode submit and "Publish briefs". Same 429 contract on rate limit.
 - `POST /api/post-briefs` → posts feature briefs as `position: 1` comments per file via the reviews endpoint
+- `GET /api/chat-context` → `{enabled: bool, session_id: str|null}` (UI uses this on boot to decide whether to wire the right-click menu)
+- `POST /api/chat` (**streaming, inline chat backend**) → body `{message: string, snippet?: {path, start_line, end_line, side, code}}`. Spawns `claude --output-format=stream-json --verbose --dangerously-skip-permissions --resume <session_id> -p <body>` with the snippet preamble injected when present. Response is line-delimited JSON (one stream-json event per line), `Content-Type: application/x-ndjson`, `Connection: close`. Serialized via a chat lock — concurrent requests get HTTP 409. Returns the special `{type: "chat_done", code: N}` event when the subprocess exits.
+- `POST /api/chat-cancel` → SIGTERMs the in-flight chat subprocess (if any)
 
-All POST endpoints expect/emit JSON.
+All other POST endpoints expect/emit JSON.
 
 ---
 
